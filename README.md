@@ -1,6 +1,8 @@
 # Sigma-6 Sound Synthesizer
 MIDI Sound Synth app using Additive Synthesis technique runs on a 32-bit MCU.
 
+![ItsyBitsy M0 Synth proto v1 slant-view](https://github.com/user-attachments/assets/b4ee3654-212e-4471-a057-603720445291)
+
 For details of concept, design and operation, please refer to the PDF doc.  But please keep in mind
 this document applies to a variant of the synth incorporating a user interface (LCD screen and control panel),
 whereas the software provided here does not support the control panel.  All setup and patch programming
