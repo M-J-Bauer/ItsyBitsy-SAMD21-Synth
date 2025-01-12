@@ -1,9 +1,14 @@
 # Sigma-6 Sound Synthesizer
 MIDI Sound Synth app using Additive Synthesis technique runs on a 32-bit MCU.
 
-For details of concept, design and operation, please refer to the PDF doc. But, please keep in mind
-this document applies to a variant of the synth without the user interface (LCD screen and control panel).
-Details of the hardware platform and synth operation will be posted shortly.
+For details of concept, design and operation, please refer to the PDF doc.  But please keep in mind
+this document applies to a variant of the synth incorporating a user interface (LCD screen and control panel),
+whereas the software provided here does not support the control panel.  All setup and patch programming
+is done by MIDI messages. Details of the hardware platform and synth operation will be posted shortly.
+
+A future revision will support analog CV (control voltage) inputs for control of pitch, modulation, expression,
+etc, so that one or more Sigma-6 "voice modules" can be incorporated into a modular eurorack system.
+The voice module will support an optional user interface comprising a graphic OLED display and data entry pot.
 
 This repo contains an Arduino "sketch" (program) which runs on a synth module based on the Adafruit "ItsyBitsy M0 Express"
 (ATSAMD21) MCU board.  The same firmware runs on compatible MCU boards, e.g. the Chinese 'RobotDyn' SAMD21 M0-mini.
