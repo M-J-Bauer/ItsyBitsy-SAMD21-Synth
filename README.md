@@ -3,8 +3,8 @@ MIDI Sound Synth app using Additive Synthesis technique runs on a 32-bit MCU.
 
 For details of concept, design and operation, please refer to the PDF doc.
 
-Note: This repo is temporarily incomplete - it contains only the higher-level code modules to allow readers to 
-get an idea of the workings of the program.  A complete implementation will be forthcoming in due course.
+Note: This repo contains an Arduino "sketch" (program) which runs on a synth module based on the "ItsyBitsy M0 Express"
+(ATSAMD21) MCU board from Adafruit.  It also runs on compatible MCU boards, e.g. the Chinese 'RobotDyn' SAMD21 M0-MINI.
 
 The application was developed originally on a PIC32MX platform using Microchip MPLAB.X IDE.  
 Since it is now difficult to obtain a breakout module or proto board based on the PIC32MX family,
