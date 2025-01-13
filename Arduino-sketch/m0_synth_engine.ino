@@ -68,8 +68,6 @@ volatile uint16   v_MixerOutGain;         // Mixer output gain x100 (x0.8 - x10 
 volatile fixed_t  v_LimiterLevelPos;      // Audio limiter level (pos. peak, normalized)
 volatile fixed_t  v_LimiterLevelNeg;      // Audio limiter level (neg. peak, normalized)
 volatile uint16   v_OutputLevel;          // Audio output level x1000 (0..1000)
-volatile bool     v_Clipping;             // True -> Mixer output is clipping
-volatile uint32   v_ISRexecTime;          // ISR execution time (core cycle count)
 
 // Look-up table giving frequencies of notes on the chromatic scale.
 // The array covers a 9-octave range beginning with C0 (MIDI note number 12),
@@ -202,10 +200,9 @@ void  SynthNoteOn(uint8 noteNum, uint8 velocity)
  */
 void  SynthNoteChange(uint8 noteNum)
 {
-    float   oscFreq, freqMult, oscDetune;
-    fixed_t detuneNorm;
+    float   oscFreq, freqMult;
     int32   tableSize, oscStep;  // 16:16 bit fixed point
-    int     osc, cents;
+    int     osc;
 
     // Ensure note number is within synth range (12 ~ 108)
     noteNum &= 0x7F;
@@ -215,7 +212,7 @@ void  SynthNoteChange(uint8 noteNum)
     
     for (osc = 0;  osc < 6;  osc++)  // Update 6 oscillators...
     {
-        // Convert MIDI note number to frequency (Hz) and  apply Osc.Freq.Mult param.
+        // Convert MIDI note number to frequency (Hz) and apply OscFreqMult param.
         freqMult = g_FreqMultConst[g_Patch.OscFreqMult[osc]];  // float
         oscFreq = m_NoteFrequency[noteNum-12] * freqMult;
 
@@ -336,7 +333,7 @@ void   SynthModulation(unsigned data14)
  *
  * Overview:  Periodic background task called at 1ms intervals which performs most of the
  *            real-time sound synthesis computations, except those which need to be executed
- *            at the PCM audio sampling rate; these are done by the Timer_2 ISR.
+ *            at the PCM audio sampling rate; these are done by the Timer/Counter ISR.
  *
  * This task implements the envelope shapers, oscillator pitch bend and vibrato (LFO), mixer
  * input level control, audio output amplitude control, etc.
@@ -660,7 +657,7 @@ void   AudioLevelController()
     {
 //      if (m_ENV1_Output)  exprnLevel = m_ExpressionLevel;
 //      else  exprnLevel = 0;  // Mute when ENV1 release phase ends (option 1), or...
-        exprnLevel = m_ExpressionLevel;  // Let MIDI controller determine the level
+        exprnLevel = m_ExpressionLevel;  // ... let MIDI controller determine the level
         
         // Apply IIR smoothing filter to eliminate abrupt step changes (K = 1/16)
         smoothExprnLevel -= smoothExprnLevel >> 4;  // divide by 16
@@ -670,8 +667,8 @@ void   AudioLevelController()
     else  // controlSource == AMPLD_CTRL_CONST_MAX   // mode 0
     {
 //      if (m_NoteOn)  outputAmpld = FIXED_MAX_LEVEL;  
-//      else  outputAmpld = 0;  // Mute when note terminated (option 1), or..
-        outputAmpld = FIXED_MAX_LEVEL;  // Sound the note indefinitely
+//      else  outputAmpld = 0;  // Mute when note terminated (option 1), or...
+        outputAmpld = FIXED_MAX_LEVEL;  // ... sound the note indefinitely
     }
 
     if (outputAmpld > FIXED_MAX_LEVEL)  outputAmpld = FIXED_MAX_LEVEL;
@@ -907,8 +904,8 @@ void  OscAmpldModulation()
  * that wave-table samples are stored as 16-bit signed integers. Wave-table samples are
  * converted to normalized fixed-point (20-bit fraction) by shifting left 5 bit places.
  *
- * The Wave-table Oscillator algorithm uses lower precision fixed-point (16:16 bits) to
- * avoid arithmetic overflow, which could occur with 12:20 bit precision.
+ * The Wave-table Oscillator algorithm uses lower precision  [16:16] fixed-point variables
+ * for phase angle to avoid arithmetic overflow which would occur using the [12:20] format.
  */
 void  TC3_Handler(void)
 {
@@ -972,17 +969,15 @@ void  TC3_Handler(void)
         if (finalOutput > FIXED_CLIP_LEVEL_POS)  finalOutput = FIXED_CLIP_LEVEL_POS;  
         if (finalOutput < FIXED_CLIP_LEVEL_NEG)  finalOutput = FIXED_CLIP_LEVEL_NEG;
     }
-    
-    analogWrite(A0, 512 + (int)(finalOutput >> 11));  // on-chip DAC (10 bits)
-
+ 
 #if USE_SPI_DAC_FOR_AUDIO  
     spiDACdata = (uint16)(2048 + (int)(finalOutput >> 9));  // 12 LS bits
-    
     digitalWrite(SPI_DAC_CS, LOW);
     SPI.transfer16(spiDACdata | 0x3000 );
     digitalWrite(SPI_DAC_CS, HIGH);
-    
-#endif  
+#else  
+    analogWrite(A0, 512 + (int)(finalOutput >> 11));  // use on-chip DAC (10 bits)
+#endif
 
     digitalWrite(ISR_TESTPOINT, LOW);
     TC3->COUNT16.INTFLAG.bit.MC0 = 1;  // clear the IRQ

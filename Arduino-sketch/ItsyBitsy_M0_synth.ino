@@ -18,24 +18,40 @@ ConfigParams_t  g_Config;   // structure holding configuration params
 
 uint32_t startPeriod_1sec;  // for heartbeat LED (1Hz)
 uint32_t last_millis;       // for synth B/G process
+uint8  channelSwitches;
 
 void  TC3_Handler(void);    // Audio ISR - defined in "m0_synth_engine"
 
 
 void  setup() 
 {
+  pinMode(CHAN_SWITCH_S1, INPUT_PULLUP);
+  pinMode(CHAN_SWITCH_S2, INPUT_PULLUP);
+  pinMode(CHAN_SWITCH_S3, INPUT_PULLUP);
+  pinMode(CHAN_SWITCH_S4, INPUT_PULLUP);
+
   pinMode(MODE_JUMPER, INPUT_PULLUP); 
   pinMode(ISR_TESTPOINT, OUTPUT);  // scope test-point, ISR duty
   pinMode(SPI_DAC_CS, OUTPUT); 
   digitalWrite(SPI_DAC_CS, HIGH);  // Set DAC CS High (idle)   
   
   DefaultConfigData();      // Load default config param's
-  if (digitalRead(MODE_JUMPER) == 0)  
+  if (digitalRead(MODE_JUMPER) == LOW)  
       g_Config.AudioAmpldCtrlMode = 2;  // ENV1*Velocity (override patch)
   PresetSelect(4);          // Load preset 4 (recorder)
 
+  // Read the MIDI channel-select switches and set receiver mode
+  channelSwitches = 0;
+  if (digitalRead(CHAN_SWITCH_S1) == HIGH)  channelSwitches += 1;
+  if (digitalRead(CHAN_SWITCH_S2) == HIGH)  channelSwitches += 2;
+  if (digitalRead(CHAN_SWITCH_S3) == HIGH)  channelSwitches += 4;
+  if (digitalRead(CHAN_SWITCH_S4) == HIGH)  channelSwitches += 8;
+  g_Config.MidiChannel = channelSwitches;
+  if (channelSwitches == 0)  g_Config.MidiMode = OMNI_ON_MONO;
+  else  g_Config.MidiMode = OMNI_OFF_MONO;
+  
   // Set wave-table sampling interval for audio ISR - Timer/Counter #3
-  fast_samd21_tc3_configure((float) 1000000 / SAMPLE_RATE_HZ);  // period (us)
+  fast_samd21_tc3_configure((float) 1000000 / SAMPLE_RATE_HZ);  // period = 31.25us
   fast_samd21_tc3_start();
 
   Serial1.begin(31250);     // Open serial port for MIDI IN
@@ -55,11 +71,14 @@ void  loop()
       SynthProcess();
   }
     
-  if ((millis() - startPeriod_1sec) > 500)  // half-second period end
+  if ((millis() - startPeriod_1sec) > 1000)  // 1 second period
   {
     startPeriod_1sec = millis();  // capture LED period start time
     //
-    // to do:  read config switches
+    // *** todo:  Pulse heartbeat LED .. 1Hz at 100ms duty... ***
+    // Adafruit M0 Express:  Use RGB LED DotStar (magenta - low brightness!)
+    // RobotDyn M0 Mini:  Use on-board TX or RX LED  (* No LED on D13 *)
+    //
   }
 }
 
@@ -87,8 +106,12 @@ void  PresetSelect(uint8 preset)
  * This routine monitors the serial MIDI INPUT stream and whenever a complete message is 
  * received, it is processed.
  *
- * The synth module responds to all valid messages received on channel 16, so that the
- * host controller can transmit a "broadcast" message to all modules on the MIDI bus.
+ * The synth module responds to valid messages addressed to the configured MIDI IN channel and,
+ * if MIDI mode is set to 'Omni On' (channel-select switches set to 0), it will respond to all
+ * messages received, regardless of which channel(s) the messages are addressed to.
+ * The module also responds to valid messages addressed to channel 16, regardless of the channel
+ * switch setting, so that the host controller can transmit a "broadcast" message to all modules
+ * on the MIDI network simultaneously.
  */
 void  MidiInputService()
 {
@@ -329,15 +352,12 @@ int  MIDI_GetMessageLength(uint8 statusByte)
 
 
 /*`````````````````````````````````````````````````````````````````````````````````````````````````
- *   Function sets default values for configuration param's.
- *
- *   todo ***  Set MIDI channel & mode using DIP switch (4 pole);  chan 0 -> Omni mode.
- *        ***  Set config. param's via MIDI CC messages.
+ *   Set default values for configuration param's, except those which are assigned values
+ *   by reading config switches, jumpers, etc, at start-up, e.g. MIDI channel & mode.
+ *   Config param's may be changed subsequently by MIDI CC messages.
  */
 void  DefaultConfigData(void)
 {
-    g_Config.MidiMode = OMNI_OFF_MONO;
-    g_Config.MidiChannel = 1;   
     g_Config.AudioAmpldCtrlMode = 0;   // 0: use patch param
     g_Config.MidiExpressionCCnum = 2;
     g_Config.VibratoCtrlMode = 0;
