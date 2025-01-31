@@ -8,10 +8,14 @@
 
 #include "common_def.h"
 
-#define USE_SPI_DAC_FOR_AUDIO    TRUE    // Set TRUE to use external SPI DAC
+#define USE_SPI_DAC_FOR_AUDIO    TRUE    // Set FALSE to use MCU on-chip DAC (10 bits)
 #define SPI_DAC_CS                  2    // DAC CS/ pin ID
 #define MODE_JUMPER                 7    // Mode jumper (JP1) input pin
 #define ISR_TESTPOINT              13    // ISR test-point pin
+#define CHAN_SWITCH_S1             12    // MIDI channel-select switch S1 (bit 0)
+#define CHAN_SWITCH_S2             11    // MIDI channel-select switch S2 (bit 1)
+#define CHAN_SWITCH_S3             10    // MIDI channel-select switch S3 (bit 2)
+#define CHAN_SWITCH_S4              9    // MIDI channel-select switch S4 (bit 3)
 
 #define WAVE_TABLE_SIZE          2048    // nunber of samples
 #define SAMPLE_RATE_HZ          32000    // typically 32,000 or 40,000 Hz
@@ -24,9 +28,7 @@
 #define FIXED_MIN_LEVEL    (1)                   // Minimum non-zero signal level (0.00001)
 #define FIXED_MAX_LEVEL  (IntToFixedPt(1) - 1)   // Full-scale normalized signal level (0.99999)
 #define FIXED_PT_HALF    (IntToFixedPt(1) / 2)   // constant = 0.5 in fixed_t format
-
-#define FIXED_CLIP_LEVEL_POS   ((IntToFixedPt( 1) * 95) / 100)    // constant =  0.95
-#define FIXED_CLIP_LEVEL_NEG   ((IntToFixedPt(-1) * 95) / 100)    // constant = -0.95
+#define MAX_CLIPPING_LEVEL   ((IntToFixedPt(1) * 97) / 100)   // constant = 0.97
 
 // Possible values for config parameter: g_Config.AudioAmpldCtrlMode
 // If non-zero, this setting overrides the patch parameter: g_Patch.AmpldControlSource
@@ -83,7 +85,7 @@
 typedef struct table_of_configuration_params
 {
     uint8   MidiMode;                 // MIDI IN mode (Omni on/off, mono)
-    uint8   MidiChannel;              // MIDI IN channel, 1..16, dflt 1
+    uint8   MidiChannel;              // MIDI IN channel, 1..15, dflt 1
     uint8   MidiExpressionCCnum;      // MIDI IN breath/pressure CC number, dflt 2
     uint8   AudioAmpldCtrlMode;       // Override patch param AmpldControlSource
     uint8   VibratoCtrlMode;          // Vibrato Control Mode, dflt: 0 (Off)

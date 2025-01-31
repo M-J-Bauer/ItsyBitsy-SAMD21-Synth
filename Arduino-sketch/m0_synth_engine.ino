@@ -680,7 +680,8 @@ void   AudioLevelController()
     if (g_Patch.LimiterLevelPc != 0)   // Limiter enabled...
         v_LimiterLevelPos = IntToFixedPt(g_Patch.LimiterLevelPc) / 100;
     else  // Limiter disabled...
-        v_LimiterLevelPos = FIXED_CLIP_LEVEL_POS;  // maximum allowed level
+        v_LimiterLevelPos = MAX_CLIPPING_LEVEL;  // maximum allowed level
+		
     v_LimiterLevelNeg = 0 - v_LimiterLevelPos;
 }
 
@@ -964,10 +965,6 @@ void  TC3_Handler(void)
             finalOutput += (reverbOut * m_RvbMix) >> 7;   // Wet portion
         }
         else  finalOutput = attenOut;
-        
-        // Apply limiter (again, in case reverb output exceeds allowed maximum)
-        if (finalOutput > FIXED_CLIP_LEVEL_POS)  finalOutput = FIXED_CLIP_LEVEL_POS;  
-        if (finalOutput < FIXED_CLIP_LEVEL_NEG)  finalOutput = FIXED_CLIP_LEVEL_NEG;
     }
  
 #if USE_SPI_DAC_FOR_AUDIO  
