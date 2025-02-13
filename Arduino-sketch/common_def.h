@@ -4,7 +4,7 @@
    File contains MJB's common definitions for 32-bit MCU embedded applications.
 
    Note:  This code was migrated to Arduino from another IDE (Microchip MPLAB.X)
-          which might help to explain some anomalies in data typedefs, etc.
+          which might help to explain some oddities in data typedefs, etc.
 */
 #ifndef MJB_SYSTEM_DEF_H
 #define MJB_SYSTEM_DEF_H

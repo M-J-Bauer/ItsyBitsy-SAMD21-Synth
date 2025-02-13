@@ -8,14 +8,20 @@
 
 #include "common_def.h"
 
-#define USE_SPI_DAC_FOR_AUDIO    TRUE    // Set FALSE to use MCU on-chip DAC (10 bits)
+#define FIRMWARE_VERSION        "1.2"
+
+#define USE_SPI_DAC_FOR_AUDIO    TRUE    // Set FALSE to use MCU on-chip DAC (A0)
 #define SPI_DAC_CS                  2    // DAC CS/ pin ID
-#define MODE_JUMPER                 7    // Mode jumper (JP1) input pin
-#define ISR_TESTPOINT              13    // ISR test-point pin
+#define CV_MODE_JUMPER              7    // CV Mode jumper (JP1) input pin
+#define TESTPOINT1                 13    // Scope test-point pin
+#define TESTPOINT2                  5    // Scope test-point pin
 #define CHAN_SWITCH_S1             12    // MIDI channel-select switch S1 (bit 0)
 #define CHAN_SWITCH_S2             11    // MIDI channel-select switch S2 (bit 1)
 #define CHAN_SWITCH_S3             10    // MIDI channel-select switch S3 (bit 2)
 #define CHAN_SWITCH_S4              9    // MIDI channel-select switch S4 (bit 3)
+#define BUTTON_A_PIN                3    // Button [A] input (active low)
+#define BUTTON_B_PIN                4    // Button [B] input (active low)
+#define GATE_INPUT                 19    // GATE input (digital, active High)
 
 #define WAVE_TABLE_SIZE          2048    // nunber of samples
 #define SAMPLE_RATE_HZ          32000    // typically 32,000 or 40,000 Hz
@@ -24,11 +30,12 @@
 #define REVERB_DELAY_MAX_SIZE    2000    // samples 
 #define REVERB_LOOP_TIME_SEC     0.04    // seconds (max. 0.05 sec.)
 #define REVERB_DECAY_TIME_SEC     1.5    // seconds
+#define REVERB_ATTENUATION_PC      70    // percent (range: 35..95 %)
 
-#define FIXED_MIN_LEVEL    (1)                   // Minimum non-zero signal level (0.00001)
+#define FIXED_MIN_LEVEL           (1)    // Minimum non-zero signal level (0.00001)
 #define FIXED_MAX_LEVEL  (IntToFixedPt(1) - 1)   // Full-scale normalized signal level (0.99999)
 #define FIXED_PT_HALF    (IntToFixedPt(1) / 2)   // constant = 0.5 in fixed_t format
-#define MAX_CLIPPING_LEVEL   ((IntToFixedPt(1) * 97) / 100)   // constant = 0.97
+#define MAX_CLIPPING_LEVEL ((IntToFixedPt(1) * 97) / 100)   // constant = 0.97
 
 // Possible values for config parameter: g_Config.AudioAmpldCtrlMode
 // If non-zero, this setting overrides the patch parameter: g_Patch.AmpldControlSource
@@ -39,9 +46,14 @@
 
 // Possible values for config parameter: g_Config.VibratoCtrlMode
 #define VIBRATO_DISABLED            0    // Vibrato disabled
-#define VIBRATO_BY_EFFECT_SW        1    // Vibrato controlled by effect switch (TBD))
-#define VIBRATO_BY_MODN_CC          2    // Vibrato controlled by Modulation (CC1)
+#define VIBRATO_BY_MODN_CC          1    // Vibrato controlled by MIDI message (CC1)
+#define VIBRATO_BY_CV_AUXIN         2    // Vibrato controlled by CV4 (AUX.IN)
 #define VIBRATO_AUTOMATIC           3    // Vibrato automatic, delay + ramp, all osc.
+
+// Possible values for config parameter: g_Config.PitchBendMode
+#define PITCH_BEND_DISABLED         0    // Pitch Bend disabled
+#define PITCH_BEND_BY_MIDI_MSG      1    // Pitch Bend controlled by MIDI message
+#define PITCH_BEND_BY_CV1_INPUT     2    // Pitch Bend controlled by CV1 (PITCH)
 
 // Possible values for patch parameters: g_Patch.OscAmpldModSource[6]]
 #define OSC_MODN_SOURCE_NONE        0    // Osc Ampld Mod'n disabled (fixed 100%)
@@ -82,71 +94,74 @@
 #define CC_EXPRESSION        11      //    ..     ..     ..
 #define MIDI_MSG_MAX_LENGTH  16      // not in MIDI specification!
 
-typedef struct table_of_configuration_params
-{
-    uint8   MidiMode;                 // MIDI IN mode (Omni on/off, mono)
-    uint8   MidiChannel;              // MIDI IN channel, 1..15, dflt 1
-    uint8   MidiExpressionCCnum;      // MIDI IN breath/pressure CC number, dflt 2
-    uint8   AudioAmpldCtrlMode;       // Override patch param AmpldControlSource
-    uint8   VibratoCtrlMode;          // Vibrato Control Mode, dflt: 0 (Off)
-    uint8   PitchBendEnable;          // Pitch Bend Enable (0: disabled)
-    uint8   PitchBendRange;           // Pitch Bend range, semitones (1..12)
-    uint8   ReverbAtten_pc;           // Reverberation attenuator gain (1..100 %)
-    uint8   ReverbMix_pc;             // Reverberation wet/dry mix (1..100 %)
-
-} ConfigParams_t;
-
-extern  ConfigParams_t  g_Config;     // structure holding configuration params
-
 enum  Envelope_Gen_Phases  // aka "segments"
 {
-    ENV_IDLE = 0,      // Idle - Envelope off - zero output level
-    ENV_ATTACK,        // Attack - linear ramp up to peak
-    ENV_PEAK_HOLD,     // Peak Hold - constant output at max. level (.999)
-    ENV_DECAY,         // Decay - exponential ramp down to sustain level
-    ENV_SUSTAIN,       // Sustain - constant output at preset level
-    ENV_RELEASE,       // Release - exponential ramp down to zero level
+  ENV_IDLE = 0,      // Idle - Envelope off - zero output level
+  ENV_ATTACK,        // Attack - linear ramp up to peak
+  ENV_PEAK_HOLD,     // Peak Hold - constant output at max. level (.999)
+  ENV_DECAY,         // Decay - exponential ramp down to sustain level
+  ENV_SUSTAIN,       // Sustain - constant output at preset level
+  ENV_RELEASE,       // Release - exponential ramp down to zero level
 };
 
 enum  Contour_Gen_Phases  // aka "segments"
 {
-    CONTOUR_IDLE = 0,  // Idle - maintain start or hold level
-    CONTOUR_DELAY,     // Delay after note on, before ramp
-    CONTOUR_RAMP,      // Ramp progressing (linear)
-    CONTOUR_HOLD       // Hold at constant level indefinitely
+  CONTOUR_IDLE = 0,  // Idle - maintain start or hold level
+  CONTOUR_DELAY,     // Delay after note on, before ramp
+  CONTOUR_RAMP,      // Ramp progressing (linear)
+  CONTOUR_HOLD       // Hold at constant level indefinitely
 };
+
+typedef struct table_of_configuration_params
+{
+  uint8   AudioAmpldCtrlMode;       // Override patch param AmpldControlSource
+  uint8   VibratoCtrlMode;          // Vibrato Control Mode, dflt: 0 (Off)
+  uint8   PitchBendMode;            // Pitch Bend Control Mode (0: disabled)
+  uint8   PitchBendRange;           // Pitch Bend range, semitones (1..12)
+  uint8   ReverbMix_pc;             // Reverb. wet/dry mix (0..100 %)
+  uint8   PresetLastSelected;       // Preset Last Selected (0..99)
+  uint8   Pitch_CV_BaseNote;        // Lowest note in Pitch CV range (MIDI #)
+  bool    Pitch_CV_Quantize;        // Quantize CV pitch to nearest semitone
+  short   CV1_FullScale_mV;         // CV1 input calibration constant (mV)
+  short   MasterTuneOffset;         // Pitch fine-tuning (+/-100 cents)
+  //
+  uint32  eepromCheckWord;          // Data integrity check (*last entry*)
+
+} ConfigParams_t;
+
+extern  ConfigParams_t  g_Config;     // structure holding configuration params
 
 // Data structure for active patch (g_Patch) and preset patches in flash PM.
 // Note: Vibrato control mode is NOT a PATCH parameter; it is a config. param.
 //
 typedef  struct  synth_patch_param_table
 {
-    char   PresetName[24];        // Preset (patch) name, up to 22 chars
-    uint16 OscFreqMult[6];        // One of 12 options (encoded 0..11)
-    uint16 OscAmpldModSource[6];  // One of 10 options (encoded 0..9)
-    short  OscDetune[6];          // Unit = cents (range 0..+/-600)
-    uint16 MixerInputStep[6];     // Mixer Input Level (encoded 0..16)
-    ////
-    uint16 EnvAttackTime;         // 5..5000+ ms
-    uint16 EnvHoldTime;           // 0..5000+ ms (if zero, skip Decay)
-    uint16 EnvDecayTime;          // 5..5000+ ms
-    uint16 EnvSustainLevel;       // Unit = 1/100 (range 0..100 %)
-    uint16 EnvReleaseTime;        // 5..5000+ ms
-    uint16 AmpControlMode;        // One of 4 options (encoded 0..3)
-    ////
-    uint16 ContourStartLevel;     // Unit = 1/100 (range 0..100 %)
-    uint16 ContourDelayTime;      // 0..5000+ ms
-    uint16 ContourRampTime;       // 5..5000+ ms
-    uint16 ContourHoldLevel;      // Unit = 1/100 (range 0..100 %)
-    uint16 Env2DecayTime;         // 5..5000+ ms
-    uint16 Env2SustainLevel;      // Unit = 1/100 (range 0..100 %)
-    ////
-    uint16 LFO_Freq_x10;          // LFO frequency x10 (range 5..250)
-    uint16 LFO_RampTime;          // 5..5000+ ms
-    uint16 LFO_FM_Depth;          // Unit = 1/100 semitone (cents, max. 600)
-    uint16 LFO_AM_Depth;          // Unit = 1/100 (0..100 %FS)
-    uint16 MixerOutGain_x10;      // Unit = 1/10  (value = gain x10, 0..100)
-    uint16 LimiterLevelPc;        // Audio limiter level (%), 0: Disabled
+  char   PresetName[24];        // Preset (patch) name, up to 22 chars
+  uint16 OscFreqMult[6];        // One of 12 options (encoded 0..11)
+  uint16 OscAmpldModSource[6];  // One of 10 options (encoded 0..9)
+  short  OscDetune[6];          // Unit = cents (range 0..+/-600)
+  uint16 MixerInputStep[6];     // Mixer Input Levels (encoded 0..16)
+  ////
+  uint16 EnvAttackTime;         // 5..5000+ ms
+  uint16 EnvHoldTime;           // 0..5000+ ms (if zero, skip Decay)
+  uint16 EnvDecayTime;          // 5..5000+ ms
+  uint16 EnvSustainLevel;       // Unit = 1/100 (range 0..100 %)
+  uint16 EnvReleaseTime;        // 5..5000+ ms
+  uint16 AmpControlMode;        // One of 4 options (encoded 0..3)
+  ////
+  uint16 ContourStartLevel;     // Unit = 1/100 (range 0..100 %)
+  uint16 ContourDelayTime;      // 0..5000+ ms
+  uint16 ContourRampTime;       // 5..5000+ ms
+  uint16 ContourHoldLevel;      // Unit = 1/100 (range 0..100 %)
+  uint16 Env2DecayTime;         // 5..5000+ ms
+  uint16 Env2SustainLevel;      // Unit = 1/100 (range 0..100 %)
+  ////
+  uint16 LFO_Freq_x10;          // LFO frequency x10 (range 5..250)
+  uint16 LFO_RampTime;          // 5..5000+ ms
+  uint16 LFO_FM_Depth;          // Unit = 1/100 semitone (cents, max. 600)
+  uint16 LFO_AM_Depth;          // Unit = 1/100 (0..100 %FS)
+  uint16 MixerOutGain_x10;      // Unit = 1/10  (value = gain x10, 0..100)
+  uint16 LimiterLevelPc;        // Audio limiter level (%), 0: Disabled
 
 } PatchParamTable_t;
 
@@ -158,6 +173,13 @@ extern  const   uint16  g_base2exp[];
 extern  const   float   g_FreqMultConst[];
 extern  const   uint16  g_MixerInputLevel[];
 
+extern  uint8  g_MidiChannel;        // 1..16  (16 = broadcast, omni)
+extern  uint8  g_MidiMode;           // OMNI_ON_MONO or OMNI_OFF_MONO
+extern  bool   g_DisplayEnabled;     // True if OLED is enabled
+extern  bool   g_CVcontrolMode;      // True if CV pitch control enabled
+
+extern  const  float  g_NoteFrequency[];
+
 // Functions defined in main source file ...
 //
 int    GetNumberOfPresets(void);
@@ -167,6 +189,7 @@ void   ProcessMidiMessage(uint8 *midiMessage, short msgLength);
 void   ProcessControlChange(uint8 *midiMessage);
 void   ProcessMidiSystemExclusive(uint8 *midiMessage, short msgLength);
 int    MIDI_GetMessageLength(uint8 statusByte);
+void   CVinputService();
 void   DefaultConfigData(void);
 
 // Functions defined in "m0_synth_engine.c" ...
@@ -179,5 +202,9 @@ void   SynthPitchBend(int data14);
 void   SynthExpression(unsigned data14);
 void   SynthModulation(unsigned data14);
 void   SynthProcess();
+void   SynthSetOscFrequency(float freq_Hz);
+void   SynthTriggerAttack();
+void   SynthTriggerRelease();
+
 
 #endif // M0_SYNTH_DEF_H

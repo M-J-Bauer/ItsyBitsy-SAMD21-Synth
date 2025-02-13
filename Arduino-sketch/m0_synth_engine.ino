@@ -8,9 +8,6 @@
  * Author:     M.J.Bauer, 2025 -- www.mjbauer.biz
  *
  * Licence:    Open Source (Unlicensed) -- free to copy, distribute, modify
- *
- * Note:       This code was migrated to Arduino from another IDE (Microchip MPLAB.X)
- *             which might help to explain some anomalies in data typedefs, etc.
  */
 #include <SPI.h>
 #include "m0_synth_def.h"
@@ -32,7 +29,7 @@ PatchParamTable_t  g_Patch;     // active patch parameters
 
 static int32    m_OscStepInit[6];         // Osc phase step values at Note-On
 static int32    m_OscStepDetune[6];       // Osc phase step values with de-tune applied
-static bool     m_OscMuted[6];            // True if osc freq. exceeds 16kHz       
+static bool     m_OscMuted[6];            // True if osc freq > 0.4 x SAMPLE_RATE_HZ       
 static int32    m_LFO_Step;               // LFO "phase step" (fixed-point format)
 static fixed_t  m_LFO_output;             // LFO output signal, normalized, bipolar (+/-1.0)
 static fixed_t  m_RampOutput;             // Vibrato Ramp output level,  normalized (0..+1)
@@ -74,7 +71,7 @@ volatile uint16   v_OutputLevel;          // Audio output level x1000 (0..1000)
 // up to C9 (120).  Subtract 12 from MIDI note number to get table index.
 // Table index range:  0..108
 //
-const  float  m_NoteFrequency[] =
+const  float  g_NoteFrequency[] =
 {
     // C0      C#0       D0      Eb0       E0       F0      F#0       G0
     16.3516, 17.3239, 18.3540, 19.4455, 20.6017, 21.8268, 23.1247, 24.4997,
@@ -119,13 +116,13 @@ const  uint16  g_AmpldLevelLogScale_x1000[] =
  * Function:     Initialization of "constant" synth data environment.
  *               Called by PresetSelect().
  *               Must be called after a change in any config. parameter.
- *
- * Note:         The signal v_SynthEnable is set False. This mutes audio output.
  */
 void  SynthPrepare()
 {
     static bool SPI_setupDone;
     float   rvbDecayRatio;
+
+    v_SynthEnable = 0;      // Disable the synth tone-generator
 
     if (SPI_setupDone)  SPI.endTransaction();  // already begun
     else  // initialize PSI -- once only at power-on/reset
@@ -134,20 +131,21 @@ void  SynthPrepare()
         SPI.beginTransaction(SPISettings(20000000, MSBFIRST, SPI_MODE0));  
         SPI_setupDone = TRUE; 
     }  
-
-    v_SynthEnable = 0;      // Disable the synth tone-generator
+    
     m_NoteOn = FALSE;       // No note playing
     m_TriggerRelease1 = 1;  // Reset ENV1
     m_TriggerRelease2 = 1;  // Reset ENV2
     m_ExpressionLevel = 0;  // Mute audio output
+    m_KeyVelocity = (IntToFixedPt(1) * 80) / 100;  // in case CV mode selected
     
     // Calculate reverb effect constants...
     m_RvbDelayLen = (int) (REVERB_LOOP_TIME_SEC * SAMPLE_RATE_HZ);  // loop time is 0.04f
     rvbDecayRatio = (float) REVERB_LOOP_TIME_SEC / REVERB_DECAY_TIME_SEC;
     m_RvbDecay = FloatToFixed( powf(0.001f, rvbDecayRatio) );  // = 0.83 (approx)   
-
-    m_RvbAtten = ((uint16)g_Config.ReverbAtten_pc << 7) / 100;  // = 0..127
+    m_RvbAtten = ((uint16)REVERB_ATTENUATION_PC << 7) / 100;  // = 0..127
     m_RvbMix = ((uint16)g_Config.ReverbMix_pc << 7) / 100;  // = 0..127
+
+    v_SynthEnable = 1;      // Let 'er rip, Boris!
 }
 
 
@@ -166,26 +164,30 @@ void  SynthPrepare()
  */
 void  SynthNoteOn(uint8 noteNum, uint8 velocity)
 {
-    if (!m_NoteOn)    // Note OFF -- Initiate a new note...
-    {
-        SynthNoteChange(noteNum);  // Set OSC frequencies, etc
+  if (!m_NoteOn)    // Note OFF -- Initiate a new note...
+  {
+    SynthNoteChange(noteNum);  // Set OSC frequencies, etc
 
-        // A square-law curve is applied to velocity
-        m_KeyVelocity = IntToFixedPt((int) velocity) / 128;  // normalized
-        m_KeyVelocity = MultiplyFixed(m_KeyVelocity, m_KeyVelocity);  // squared
+    // A square-law curve is applied to velocity
+    m_KeyVelocity = IntToFixedPt((int) velocity) / 128;  // normalized
+    m_KeyVelocity = MultiplyFixed(m_KeyVelocity, m_KeyVelocity);  // squared
+    m_LegatoNoteChange = 0;    // Not a Legato event
+    SynthTriggerAttack();
+  }
+  else  // Note already playing -- Legato note change
+  {
+    SynthNoteChange(noteNum);  // Adjust OSC1 and OSC2 frequencies
+    m_LegatoNoteChange = 1;    // Signal Note-Change event (for vibrato fn)
+  }
+}
 
-        m_LegatoNoteChange = 0;    // Not a Legato event
-        m_TriggerAttack1 = 1;      // Let 'er rip, Boris
-        m_TriggerAttack2 = 1;
-        m_TriggerContour = 1;
-        m_NoteOn = TRUE;
-        v_SynthEnable = 1;
-    }
-    else  // Note already playing -- Legato note change
-    {
-        SynthNoteChange(noteNum);  // Adjust OSC1 and OSC2 frequencies
-        m_LegatoNoteChange = 1;    // Signal Note-Change event (for vibrato fn)
-    }
+
+void  SynthTriggerAttack()
+{
+  m_TriggerAttack1 = 1;
+  m_TriggerAttack2 = 1;
+  m_TriggerContour = 1;
+  m_NoteOn = TRUE;
 }
 
 
@@ -200,32 +202,52 @@ void  SynthNoteOn(uint8 noteNum, uint8 velocity)
  */
 void  SynthNoteChange(uint8 noteNum)
 {
-    float   oscFreq, freqMult;
-    int32   tableSize, oscStep;  // 16:16 bit fixed point
-    int     osc;
+  float   oscFreq, freqMult;
+  int32   tableSize, oscStep;  // 16:16 bit fixed point
+  int     osc;
 
-    // Ensure note number is within synth range (12 ~ 108)
-    noteNum &= 0x7F;
-    if (noteNum > 120)  noteNum -= 12;   // too high
-    if (noteNum < 12)   noteNum += 12;   // too low
-    m_NotePlaying = noteNum;
-    
-    for (osc = 0;  osc < 6;  osc++)  // Update 6 oscillators...
-    {
-        // Convert MIDI note number to frequency (Hz) and apply OscFreqMult param.
-        freqMult = g_FreqMultConst[g_Patch.OscFreqMult[osc]];  // float
-        oscFreq = m_NoteFrequency[noteNum-12] * freqMult;
+  // Ensure note number is within synth range (12 ~ 108)
+  noteNum &= 0x7F;
+  if (noteNum > 120)  noteNum -= 12;   // too high
+  if (noteNum < 12)   noteNum += 12;   // too low
+  m_NotePlaying = noteNum;
+  
+  for (osc = 0;  osc < 6;  osc++)  // Update 6 oscillators...
+  {
+    // Convert MIDI note number to frequency (Hz) and apply OscFreqMult param.
+    freqMult = g_FreqMultConst[g_Patch.OscFreqMult[osc]];  // float
+    oscFreq = g_NoteFrequency[noteNum-12] * freqMult;
+    if (oscFreq > MAX_OSC_FREQ_HZ)  m_OscMuted[osc] = TRUE;
+    else  m_OscMuted[osc] = FALSE;
 
-        // If oscFreq > 12 kHz, set flag -- Osc will be muted to avoid aliasing
-        if (oscFreq > MAX_OSC_FREQ_HZ)  m_OscMuted[osc] = TRUE;
-        else  m_OscMuted[osc] = FALSE;
+    // Initialize oscillator "phase step" for use in audio ISR
+    tableSize = (int32) WAVE_TABLE_SIZE << 16;  // convert to 16:16 fixed-pt
+    oscStep = (int32) ((tableSize * oscFreq) / SAMPLE_RATE_HZ);
+    m_OscStepInit[osc] = oscStep;
+  }
+}
 
-        // Initialize oscillator "phase step" for use in audio ISR
-        tableSize = (int32) WAVE_TABLE_SIZE << 16;  // convert to 16:16 fixed-pt
-        oscStep = (int32) ((tableSize * oscFreq) / SAMPLE_RATE_HZ);
-        m_OscStepInit[osc] = oscStep;
-        v_OscStep[osc] = oscStep;
-    }
+
+// This function is provided for CV control mode to set oscillator pitch.
+//
+void  SynthSetOscFrequency(float fundamental_Hz)
+{
+  float   oscFreq, freqMult;
+  int32   tableSize, oscStep;  // 16:16 bit fixed point
+  int     osc;
+
+  for (osc = 0;  osc < 6;  osc++)  // Set freq in 6 oscillators...
+  {
+    freqMult = g_FreqMultConst[g_Patch.OscFreqMult[osc]];  // float
+    oscFreq = fundamental_Hz * freqMult;
+    if (oscFreq > MAX_OSC_FREQ_HZ)  m_OscMuted[osc] = TRUE;
+    else  m_OscMuted[osc] = FALSE;
+
+    // Initialize oscillator "phase step" for use in audio ISR
+    tableSize = (int32) WAVE_TABLE_SIZE << 16;  // convert to 16:16 fixed-pt
+    oscStep = (int32) ((tableSize * oscFreq) / SAMPLE_RATE_HZ);
+    m_OscStepInit[osc] = oscStep;
+  }
 }
 
 
@@ -243,14 +265,16 @@ void  SynthNoteOff(uint8 noteNum)
     noteNum &= 0x7F;
     if (noteNum > 120)  noteNum -= 12;   // too high
     if (noteNum < 12)   noteNum += 12;   // too low
-    
-    if (noteNum == m_NotePlaying)
-    {
-        m_TriggerRelease1 = 1;
-        m_TriggerRelease2 = 1;
-        m_TriggerReset = 1;
-        m_NoteOn = FALSE;
-    }
+    if (noteNum == m_NotePlaying) SynthTriggerRelease();
+}
+
+
+void  SynthTriggerRelease()
+{
+  m_TriggerRelease1 = 1;
+  m_TriggerRelease2 = 1;
+  m_TriggerReset = 1;
+  m_NoteOn = FALSE;
 }
 
 
@@ -614,7 +638,6 @@ void  ContourGenerator()
 }
 
 
-
 /*
  * Function:  AudioLevelController()
  *
@@ -730,6 +753,12 @@ void   VibratoRampGenerator()
     static  uint32  rampTimer_ms;
     static  fixed_t rampStep;  // Step chnage in output per 5 ms
 
+    if (g_Patch.LFO_RampTime == 0)  // ramp disabled
+    {
+      m_RampOutput = FIXED_MAX_LEVEL;
+      return;
+    }
+
     // Check for Note-Off or Note-Change event while ramp is progressing
     if (rampState != 3 && (!m_NoteOn || m_LegatoNoteChange))
     {
@@ -784,6 +813,7 @@ void   VibratoRampGenerator()
  * the wave-table oscillators according to a "deviation factor" (freqDevn) which is
  * continuously updated while a note is in progress. The function also modifies the
  * oscillator frequencies according to the respective de-tune patch parameters.
+ * This function also applies the "master tune" configuration param.
  * 
  * The linear m_PitchBendFactor is transformed into a multiplier in the range 0.5 ~ 2.0.
  * Centre (zero) m_PitchBendFactor value gives a multplier value of 1.00.
@@ -808,20 +838,23 @@ void   OscFreqModulation()
         modnLevel = (m_ModulationLevel * g_Config.PitchBendRange) / 12;  // 1 octave max.
     
     if (g_Config.VibratoCtrlMode == VIBRATO_AUTOMATIC)  // Use LFO with ramp generator
-        modnLevel = (m_RampOutput * g_Patch.LFO_FM_Depth) / 1200;  // 200 cents max.
+        modnLevel = (m_RampOutput * g_Patch.LFO_FM_Depth) / 1200;
 
-    if (g_Config.VibratoCtrlMode)  // Vibrato has priority over pitch bend
+    if (g_Config.VibratoCtrlMode == VIBRATO_BY_CV_AUXIN)  // Use LFO without ramp
+        modnLevel = (IntToFixedPt(1) * g_Patch.LFO_FM_Depth) / 1200;
+
+    if (g_Config.VibratoCtrlMode != 0)  // Vibrato has priority over pitch bend
     {
         LFO_scaled = MultiplyFixed(m_LFO_output, modnLevel); 
         freqDevn = Base2Exp(LFO_scaled);   // range 0.5 ~ 2.0.
     }
-    else if (g_Config.PitchBendEnable)  
+    else if (g_Config.PitchBendMode != 0)  // pitch bend enabled
         freqDevn = Base2Exp(m_PitchBendFactor);  // max. 1 octave
     else  freqDevn = IntToFixedPt(1);  // No FM -- default
    
     for (osc = 0;  osc < 6;  osc++)
     { 
-        cents = g_Patch.OscDetune[osc];   // signed int (0..+/-600)
+        cents = g_Patch.OscDetune[osc] + g_Config.MasterTuneOffset;  // signed
         detuneNorm = Base2Exp((IntToFixedPt(1) * cents) / 1200);
         m_OscStepDetune[osc] = MultiplyFixed(m_OscStepInit[osc], detuneNorm);
         oscStep = MultiplyFixed(m_OscStepDetune[osc], freqDevn);  // Apply FM
@@ -922,7 +955,7 @@ void  TC3_Handler(void)
     fixed_t  finalOutput = 0;       // output to audio DAC
     uint16   spiDACdata;            // SPI DAC register data
 
-    digitalWrite(ISR_TESTPOINT, HIGH);  // pin pulses high during ISR execution
+    digitalWrite(TESTPOINT1, HIGH);  // pin pulses high during ISR execution
 
     if (v_SynthEnable)
     {
@@ -976,7 +1009,7 @@ void  TC3_Handler(void)
     analogWrite(A0, 512 + (int)(finalOutput >> 11));  // use on-chip DAC (10 bits)
 #endif
 
-    digitalWrite(ISR_TESTPOINT, LOW);
+    digitalWrite(TESTPOINT1, LOW);
     TC3->COUNT16.INTFLAG.bit.MC0 = 1;  // clear the IRQ
 }
 
