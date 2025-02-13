@@ -1,0 +1,55 @@
+
+          'ItsyBitsy M0 Synth' / 'Sigma-6 Voice Module' (SAMD21 MCU)
+
+                         Firmware Revision History
+
+================================================================================
+
+v1.0  20-01-2025
+````````````````
+Preliminary release on GitHub.
+Minimal functionality... No OLED user-interface, no CV control. 
+Sound engine tested OK. MIDI control tested OK.
+
+v1.1  xx-01-2025 -- WIP (not released)
+````````````````
+Added patch presets...  total: 24
+Imported improvements done in full-featured Sigma-6 (PIC32MX).
+
+v1.2  13-02-2025
+````````````````
+Added code module to support control panel (UI with OLED, etc).
+Added MIDI Control Change message types for config & patch params).
+Added functions to support CV control mode.
+Added SETUP MENU screen to pick param to adjust...(cool feature!)
+Added many more UI screen functions (param settings).
+Added CV option to quantize (or not) pitch to nearest semitone.
+Added Master Tune parameter and GUI screen function to adjust.
+
+
+================================================================================
+
+To do:
+``````
++ MIDI CC message support for Master Tune and ENV param's.
+
++ Extend UI screen 'CV Options' to allow CV1 (pitch) base note setting...
+  (range 24 to 59)  Button B swaps between Pitch Quantize and Base Note.
+
++ Add support for Pitch Bend using CV1 input in MIDI control mode. (? TBC)
+                  ``````````       ```          `````````````````
++ Add support for Modulation using CV2 input in MIDI control mode. (? TBC)
+                  ``````````       ```          `````````````````
++ Tweak presets to produce more sound nuances... using modulation, etc.
+
++ Add support for I2C EEPROM to store config data... (use 3rd-party lib?)
+
++ Heartbeat LED on RobotDyn M0-Mini board? (Use TX or RX LED)
+
++ Add driver for 'DotStar' LED on Adafruit board? (Install lib? Bit-bang?)
+
+
+________________________________________________________________________________
+
+ItsyBitsy_M0_Synth_RevisionHistory.txt                           www.mjbauer.biz  
+
