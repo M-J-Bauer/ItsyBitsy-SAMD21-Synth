@@ -21,10 +21,19 @@ v1.2  13-02-2025
 Added code module to support control panel (UI with OLED, etc).
 Added MIDI Control Change message types for config & patch params).
 Added functions to support CV control mode.
-Added SETUP MENU screen to pick param to adjust...(cool feature!)
+Added 'SETUP MENU' screen to select param to adjust...(cool feature!)
 Added many more UI screen functions (param settings).
 Added CV option to quantize (or not) pitch to nearest semitone.
 Added Master Tune parameter and GUI screen function to adjust.
+
+v1.3  15-02-2025
+````````````````
+Fixed bug in 'ENV Decay' setup screen... data shown incorrectly.
+Fixed bug in 'Reverb' setup screen.... 'Cancel' malfunction.
+Fixed bug in 'Master Tune' setup screen... 'Cancel' malfunction.
+
+Added feature: Display brightness is adjustable using pot in 'Home' screen.
+
 
 
 ================================================================================
