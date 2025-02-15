@@ -8,7 +8,7 @@
 
 #include "common_def.h"
 
-#define FIRMWARE_VERSION        "1.2"
+#define FIRMWARE_VERSION        "1.3"
 
 #define USE_SPI_DAC_FOR_AUDIO    TRUE    // Set FALSE to use MCU on-chip DAC (A0)
 #define SPI_DAC_CS                  2    // DAC CS/ pin ID
@@ -86,7 +86,7 @@
 #define CHAN_PRESSURE_CMD    0xD0    // 2-byte message
 #define PITCH_BEND_CMD       0xE0    // 3-byte message
 #define SYS_EXCLUSIVE_MSG    0xF0    // variable length message
-#define SYSTEM_MSG_EOX       0xF7    // system msg terminator
+#define SYSTEM_MSG_EOX       0xF7    // system-ex msg terminator
 #define SYS_EXCL_REMI_ID     0x73    // arbitrary pick... hope it's free!
 #define CC_MODULATION        1       // Control change High byte
 #define CC_BREATH_PRESSURE   2       //    ..     ..     ..

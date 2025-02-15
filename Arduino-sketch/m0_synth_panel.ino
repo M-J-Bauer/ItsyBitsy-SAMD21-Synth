@@ -458,9 +458,9 @@ void UserState_ConfirmDefault()
 //  Disp_PutText("Done!");
     // *** meanwhile, show this message...................
     Disp_SetFont(PROP_8_NORM);
-    Disp_PosXY(0, 26);
+    Disp_PosXY(0, 20);
     Disp_PutText("<!> EEPROM not supported");
-    Disp_PosXY(0, 36);
+    Disp_PosXY(0, 30);
     Disp_PutText("  in firmware version 1.2");
     // *** end of temporary code .........................
     DisplayButtonLegend(BUTT_POS_A, "X");
@@ -480,6 +480,7 @@ void UserState_ConfirmDefault()
 void UserState_HomeScreen() 
 {
   static uint8 lastPresetShown;
+  uint8 setting;
   uint8 preset_id = g_Config.PresetLastSelected;
 
   if (isNewScreen) 
@@ -507,6 +508,14 @@ void UserState_HomeScreen()
     DisplayButtonLegend(BUTT_POS_A, "PRESET");
     DisplayButtonLegend(BUTT_POS_B, "SETUP");
     lastPresetShown = 255;  // force refresh
+  }
+
+  if (PotMoved()) 
+  {
+    setting = PotPosition() >> 1;  // 0..127
+    if (setting < 5)  setting = 5;
+    if (setting > 100)  setting = 100;
+    SH1106_SetContrast(setting);
   }
 
   if (ButtonHit('A')) GoToNextScreen(SELECT_PRESET);
@@ -831,8 +840,8 @@ void UserState_SetPitchBendMode()
 
 void UserState_SetReverbLevel() 
 {
-  static uint8 setting;
-  static bool settingChanged;
+  static uint8 settingSaved;  // on entry
+  uint8  setting;
   bool doRefresh = FALSE;
 
   if (isNewScreen) 
@@ -843,8 +852,7 @@ void UserState_SetReverbLevel()
     Disp_PutImage(config_icon_9x9, 9, 9);  // Config icon
     DisplayButtonLegend(BUTT_POS_A, "Cancel");
     DisplayButtonLegend(BUTT_POS_B, "Affirm");
-    setting = g_Config.ReverbMix_pc;
-    settingChanged = FALSE;
+    settingSaved = g_Config.ReverbMix_pc;
     doRefresh = TRUE;
   }
 
@@ -852,19 +860,19 @@ void UserState_SetReverbLevel()
   {
     setting = ((int)PotPosition() * 100) / 255;  // 0..100
     setting = (setting / 5) * 5;  // quantize, step size = 5
-    g_Patch.LFO_FM_Depth = setting;
-    settingChanged = TRUE;
+    g_Config.ReverbMix_pc = setting;
     doRefresh = TRUE;
   }
 
-  if (ButtonHit('A'))  GoToNextScreen(SETUP_MENU);  // Exit
+  if (ButtonHit('A'))  // Cancel
+  {
+    g_Config.ReverbMix_pc = settingSaved;
+    GoToNextScreen(SETUP_MENU); 
+  }
   if (ButtonHit('B'))  // Affirm
   {
-    if (settingChanged) 
-    {
-      g_Config.ReverbMix_pc = setting;
-      // todo: store setting in eeprom
-    }
+    // *** todo: store settings in eeprom
+    //
     GoToNextScreen(SET_LFO_DEPTH);  // Skip CV options and Master Tune
   }
 
@@ -873,7 +881,7 @@ void UserState_SetReverbLevel()
     Disp_SetFont(MONO_16_NORM);
     Disp_PosXY(48, 24);
     Disp_BlockClear(64, 16);  // clear existing data
-    Disp_PutDecimal(setting, 2);
+    Disp_PutDecimal(g_Config.ReverbMix_pc, 2);
     Disp_SetFont(PROP_12_NORM);
     Disp_PutText(" %");
   }
@@ -932,9 +940,8 @@ void UserState_SetCVOptions()
 
 void UserState_SetMasterTune()
 {
-  static short setting;  // signed
-  static bool settingChanged;
-  short  absValue;
+  static short settingSaved;  // on entry
+  short  setting, absValue;
   bool doRefresh = FALSE;
 
   if (isNewScreen) 
@@ -948,8 +955,7 @@ void UserState_SetMasterTune()
     Disp_PutText("cent");  
     DisplayButtonLegend(BUTT_POS_A, "Cancel");
     DisplayButtonLegend(BUTT_POS_B, "Affirm");
-    setting = g_Config.MasterTuneOffset;
-    settingChanged = FALSE;
+    settingSaved = g_Config.MasterTuneOffset;
     doRefresh = TRUE;
   }
 
@@ -957,18 +963,18 @@ void UserState_SetMasterTune()
   {
     setting = ((short) PotPosition() * 100) / 255 - 50;  // -50 to +50
     g_Config.MasterTuneOffset = setting;
-    settingChanged = TRUE;
     doRefresh = TRUE;
   }
 
-  if (ButtonHit('A'))  GoToNextScreen(SETUP_MENU);  // Exit
+  if (ButtonHit('A'))  // Cancel
+  {
+    g_Config.MasterTuneOffset = settingSaved;
+    GoToNextScreen(SETUP_MENU);
+  }
   if (ButtonHit('B'))  // Affirm
   {
-    if (settingChanged) 
-    {
-      g_Config.MasterTuneOffset = setting;
-      // todo: store setting in eeprom
-    }
+    // *** todo: store settings in eeprom
+    //
     GoToNextScreen(SET_LFO_DEPTH);
   }
 
@@ -977,11 +983,12 @@ void UserState_SetMasterTune()
     Disp_SetFont(MONO_16_NORM);
     Disp_PosXY(40, 24);
     Disp_BlockClear(36, 16);  // clear existing data
-    absValue = setting;
-    if (setting < 0)  { absValue = 0 - setting;  Disp_PutChar('-'); }
+    setting = g_Config.MasterTuneOffset;
+    absValue = (setting >= 0) ? setting : (0 - setting);
+    if (setting < 0)  Disp_PutChar('-');
     else if (setting > 0)  Disp_PutChar('+');
-    else  Disp_PutChar(' ');  // setting == 0: put space
-    Disp_PutDecimal(absValue, 2);  // show leading zero
+    else  Disp_PutChar(' '); 
+    Disp_PutDecimal(absValue, 2);
   }
 }
 
@@ -1178,7 +1185,7 @@ void  UserState_Set_ENV_Hold()
     Disp_PutImage(patch_icon_9x9, 9, 9);  // Patch icon
     Disp_SetFont(PROP_8_NORM);
     Disp_PosXY(4, 38);
-    Disp_PutText("[0 = bypass Peak & Decay]");
+    Disp_PutText("0 = bypass Peak & Decay");
     DisplayButtonLegend(BUTT_POS_A, "Exit");
     DisplayButtonLegend(BUTT_POS_B, "Next");
     doRefresh = TRUE;
@@ -1200,6 +1207,7 @@ void  UserState_Set_ENV_Hold()
     Disp_SetFont(MONO_16_NORM);
     Disp_PosXY(40, 20);
     Disp_BlockClear(80, 16);  // clear existing data
+    if (g_Patch.EnvHoldTime == 0) Disp_PosXY(56, 20);
     Disp_PutDecimal(g_Patch.EnvHoldTime, 1);  // up to 4 digits
     Disp_SetFont(PROP_12_NORM);
     Disp_PosXY(Disp_GetX(), 24);
@@ -1242,10 +1250,10 @@ void  UserState_Set_ENV_Decay()
   if (doRefresh) 
   {
     Disp_SetFont(MONO_16_NORM);
-    Disp_PosXY(40, 20);
-    Disp_BlockClear(80, 16);  // clear existing data
     Disp_PosXY(8, 38);
     Disp_BlockClear(120, 8);  // clear existing message
+    Disp_PosXY(40, 20);
+    Disp_BlockClear(80, 16);  // clear existing data
     if (g_Patch.EnvHoldTime != 0)
     {
       Disp_PutDecimal(g_Patch.EnvDecayTime, 1);
@@ -1277,7 +1285,7 @@ void  UserState_Set_ENV_Sustain()
     Disp_PutImage(patch_icon_9x9, 9, 9);  // Patch icon
     Disp_SetFont(PROP_8_NORM);
     Disp_PosXY(24, 38);
-    Disp_PutText("[logarithmic scale]");
+    Disp_PutText("(logarithmic scale)");
     DisplayButtonLegend(BUTT_POS_A, "Exit");
     DisplayButtonLegend(BUTT_POS_B, "Next");
     doRefresh = TRUE;

@@ -1291,14 +1291,14 @@ void  SH1106_Init(void)
 /*----------------------------------------------------------------------------------
   |  Name         :  SH1106_SetContrast()
   |  Function     :  Set OLED display contrast (brightness).
-  |  Input        :  level_pc:  contrast level (0..100 %)
+  |  Input        :  level_pc:  contrast level (0..125 %)
   |  Return       :  --
 */
-void  SH1106_SetContrast(unsigned level_pc)
+void  SH1106_SetContrast(uint8_t level_pc)
 {
-  if (level_pc > 100)  level_pc = 100;
+  if (level_pc > 125)  level_pc = 125;
   SH1106_WriteCommand(SH1106_SETCONTRAST);
-  SH1106_WriteCommand((level_pc * 255) / 100);
+  SH1106_WriteCommand(level_pc * 2);
 }
 
 

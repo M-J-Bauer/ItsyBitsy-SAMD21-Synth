@@ -9,7 +9,7 @@
  *
  * Licence:    Open Source (Unlicensed) -- free to copy, distribute, modify
  *
- * Version:    1.2  (See Revision History file)
+ * Version:    1.3  (See Revision History file)
  */
 #include <fast_samd21_tc3.h>
 #include <Wire.h>
@@ -88,37 +88,31 @@ void  setup()
 }
 
 // Main background process loop...
-// TESTPOINT2 outputs a 'scope signal to test MCU processor load
+// Test-point TP2 (D5) was used to check for periodic task over-runs.
 //
 void  loop() 
 {
-  digitalWrite(TESTPOINT2, HIGH);
   MidiInputService();
   if (g_CVcontrolMode)  CVinputService();
-  digitalWrite(TESTPOINT2, LOW);
 
   if (millis() != last_millis)  // once every millisecond...
   {
     last_millis = millis();
-    digitalWrite(TESTPOINT2, HIGH);
     SynthProcess();
-    digitalWrite(TESTPOINT2, LOW);
+    // digitalWrite(TESTPOINT2, LOW);  // pulse duty = 1ms (approx)
   }
   
   if ((millis() - startPeriod_5ms) >= 5)  // 5ms period ended
   {
 	  startPeriod_5ms = millis();
-    digitalWrite(TESTPOINT2, HIGH);
+    // digitalWrite(TESTPOINT2, HIGH);  // pulse period = 5ms
 	  if (g_DisplayEnabled)  { ButtonScan();  PotService(); }
-    digitalWrite(TESTPOINT2, LOW);
   }
   
   if ((millis() - startPeriod_50ms) >= 50)  // 50ms period ended
   {
 	  startPeriod_50ms = millis();
-    digitalWrite(TESTPOINT2, HIGH);
 	  if (g_DisplayEnabled)  UserInterfaceTask();
-    digitalWrite(TESTPOINT2, LOW);
   }
     
   if ((millis() - startPeriod_1sec) >= 1000)  // 1 second period
@@ -411,10 +405,10 @@ int  MIDI_GetMessageLength(uint8 statusByte)
 /*`````````````````````````````````````````````````````````````````````````````````````````````````
  * Function:  CVinputService()
  *
- * CV input service routine, called *frequently* from the main loop.
+ * The CV input service routine is called frequently as possible from the main process loop.
  * This routine monitors the 4 external analog (CV) inputs and the GATE input.
  *
- * Oscillator fundamental frequency is updated according to the voltage on CV1 input,
+ * Oscillator frequency (pitch) is updated according to the voltage on CV1 input,
  * using an exponential transfer function, i.e. 1 volt per octave.
  * Synth Modulation and Expression levels are updated according to the voltages on
  * CV2 and CV3 inputs (resp).  Input CV4 controls LFO FM depth, if the respective
@@ -437,6 +431,8 @@ void  CVinputService()
 
   if ((callCount & 1) == 0)  // on every alternate call...
   {
+    digitalWrite(TESTPOINT2, HIGH);  // Measure execution time of CV1 service (*TEMP*)
+    //
     inputSignal_mV = ((int) analogRead(A1) * g_Config.CV1_FullScale_mV) / 4095;
     CV1readingFilt -= CV1readingFilt >> 5;   // Apply 1st-order IIR filter, K = 1/32
     CV1readingFilt += inputSignal_mV << 11;  // input signal converted to fixed-pt * K
@@ -459,6 +455,8 @@ void  CVinputService()
       deltaFreq = freqStep * (60 * deltaCV1) / 5000;  // = freqStep * (deltaCV1 / 83.333)
       SynthSetOscFrequency(freqBound + deltaFreq);  // interpolated frequency
     }
+    //
+    digitalWrite(TESTPOINT2, LOW); 
   }
   if (callCount == 1)
   {
