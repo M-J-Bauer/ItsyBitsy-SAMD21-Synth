@@ -7,7 +7,12 @@ For details of concept, design and operation, please refer to the project web pa
 https://www.mjbauer.biz/Sigma6_M0_synth_weblog.htm
 
 This repo contains an Arduino "sketch" (program) which runs on a synth module based on the Adafruit "ItsyBitsy M0 Express"
-(ATSAMD21) MCU board.  The same firmware should run on compatible MCU boards, e.g. the Chinese 'RobotDyn' SAMD21 M0-Mini.
+(ATSAMD21) MCU board.  The same firmware should run on other MCU boards based on the ATSAMD21G18A MCU device, 
+e.g. the Arduino Zero and the Chinese 'RobotDyn' SAMD21 M0-Mini.
+
+NB: One batch (maybe all) of the 'RobotDyn' SAMD21 M0-Mini board has digital pins D2 and D4 reversed. 
+(See https://github.com/BLavery/SAMD21-M0-Mini)  The schematic is wrong.
+A work-around for this incompatibility will be embodied in the next firmware update (v1.4).
 
 The 'Sigma-6'synth application was developed originally on a PIC32MX platform using Microchip MPLAB.X IDE.  
 Since it is now difficult to obtain a breakout module or proto board based on the PIC32MX family,
