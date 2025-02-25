@@ -8,10 +8,12 @@
 
 #include "common_def.h"
 
-#define FIRMWARE_VERSION        "1.3"
+#define FIRMWARE_VERSION       "1.3R"    // Added macro to support Robotdyn M0-Mini board
 
-#define USE_SPI_DAC_FOR_AUDIO    TRUE    // Set FALSE to use MCU on-chip DAC (A0)
-#define SPI_DAC_CS                  2    // DAC CS/ pin ID
+#define USE_SAMD21_M0_MINI_MCU  FALSE    // Set TRUE to use SAMD21-M0-MINI, else FALSE
+
+//=======================================================================================
+
 #define CV_MODE_JUMPER              7    // CV Mode jumper (JP1) input pin
 #define TESTPOINT1                 13    // Scope test-point pin
 #define TESTPOINT2                  5    // Scope test-point pin
@@ -20,9 +22,17 @@
 #define CHAN_SWITCH_S3             10    // MIDI channel-select switch S3 (bit 2)
 #define CHAN_SWITCH_S4              9    // MIDI channel-select switch S4 (bit 3)
 #define BUTTON_A_PIN                3    // Button [A] input (active low)
-#define BUTTON_B_PIN                4    // Button [B] input (active low)
 #define GATE_INPUT                 19    // GATE input (digital, active High)
 
+#if USE_SAMD21_M0_MINI_MCU   // Pins D2 and D4 are reversed on RobotDyn MCU board!
+#define BUTTON_B_PIN                2    // Button [B] input (active low)
+#define SPI_DAC_CS                  4    // DAC CS/ pin ID
+#else
+#define BUTTON_B_PIN                4
+#define SPI_DAC_CS                  2 
+#endif
+
+#define USE_SPI_DAC_FOR_AUDIO    TRUE    // Always!
 #define WAVE_TABLE_SIZE          2048    // nunber of samples
 #define SAMPLE_RATE_HZ          32000    // typically 32,000 or 40,000 Hz
 #define MAX_OSC_FREQ_HZ         12000    // must be < 0.4 x SAMPLE_RATE_HZ
