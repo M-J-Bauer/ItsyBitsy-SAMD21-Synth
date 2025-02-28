@@ -33,6 +33,7 @@ enum User_Interface_States  // aka 'Screen identifiers'
   SET_PITCH_BEND,
   SET_REVERB_LEVEL,
   SET_CV_OPTIONS,
+  SET_CV_BASE_NOTE,
   SET_MASTER_TUNE,   
   // ... patch settings ...
   SET_LFO_DEPTH,
@@ -62,6 +63,7 @@ void UserState_SetVibratoMode();
 void UserState_SetPitchBendMode();
 void UserState_SetReverbLevel();
 void UserState_SetCVOptions();
+void UserState_SetCVBaseNote();
 void UserState_SetMasterTune();
 //
 void UserState_Set_LFO_FM_Depth();
@@ -111,6 +113,15 @@ bitmap_t patch_icon_9x9[] = {
 bitmap_t midi_conn_icon_9x9[] = {
   0x3E, 0x00, 0x77, 0x00, 0xDD, 0x80, 0xFF, 0x80, 0xBE, 0x80,
   0xFF, 0x80, 0xFF, 0x80, 0x7F, 0x00, 0x3E, 0x00
+};
+
+/*
+ * Bitmap image definition
+ * Image name: cv_jack_icon_8x8,  width: 8, height: 8 pixels
+ */
+bitmap_t cv_jack_icon_8x8[] = {
+    0x3C, 0x7E, 0xE7, 0xC3, 0xC3, 0xE7, 0x7E, 0x3C
+//  0x3C, 0x42, 0x99, 0xBD, 0xBD, 0x99, 0x42, 0x3C  // alt. image
 };
 
 char messageLine1[32], messageLine2[32];  // message to display
@@ -354,6 +365,7 @@ void UserInterfaceTask(void)
     case SET_PITCH_BEND:     UserState_SetPitchBendMode();   break;
     case SET_REVERB_LEVEL:   UserState_SetReverbLevel();     break;
     case SET_CV_OPTIONS:     UserState_SetCVOptions();       break;
+    case SET_CV_BASE_NOTE:   UserState_SetCVBaseNote();      break;
     case SET_MASTER_TUNE:    UserState_SetMasterTune();      break;
     //
     case SET_LFO_DEPTH:      UserState_Set_LFO_FM_Depth();   break;
@@ -480,6 +492,7 @@ void UserState_ConfirmDefault()
 void UserState_HomeScreen() 
 {
   static uint8 lastPresetShown;
+  static bool  lastModeShown;
   uint8 setting;
   uint8 preset_id = g_Config.PresetLastSelected;
 
@@ -493,21 +506,18 @@ void UserState_HomeScreen()
     Disp_PutImage(sigma_6_icon_24x21, 24, 21);
 
     Disp_Mode(SET_PIXELS);
-    Disp_PosXY(116, 1);
-    if (!g_CVcontrolMode)
-      Disp_PutImage(midi_conn_icon_9x9, 9, 9);  // MIDI DIN5 icon
-
     Disp_SetFont(PROP_12_BOLD);
     Disp_PosXY(32, 2);
     Disp_PutText("Sigma 6");
     Disp_SetFont(MONO_8_NORM);
     Disp_PosXY(32, 16);
-    if (g_CVcontrolMode) Disp_PutText("Voice Module");
-    else  Disp_PutText("ItsyBitsy Synth");
+    if (USE_SAMD21_M0_MINI_MCU || g_CVcontrolMode) Disp_PutText("Voice Module");
+    else  Disp_PutText("ItsyBitsy Synth");  // ItsyBitsy M0 MCU .AND. in MIDI mode
 
     DisplayButtonLegend(BUTT_POS_A, "PRESET");
     DisplayButtonLegend(BUTT_POS_B, "SETUP");
     lastPresetShown = 255;  // force refresh
+    lastModeShown = !g_CVcontrolMode;
   }
 
   if (PotMoved()) 
@@ -532,6 +542,16 @@ void UserState_HomeScreen()
     Disp_SetFont(PROP_8_NORM);
     Disp_PutText((char *)g_PresetPatch[preset_id].PresetName);
     lastPresetShown = g_Config.PresetLastSelected;
+  }
+
+  if (g_CVcontrolMode != lastModeShown)  // Refresh 'mode' icon
+  {
+    Disp_PosXY(116, 1);
+    Disp_BlockClear(10, 9);  // erase existing icon
+    if (g_CVcontrolMode)
+      Disp_PutImage(cv_jack_icon_8x8, 8, 8);  // CV (TS) jack icon
+    else  Disp_PutImage(midi_conn_icon_9x9, 9, 9);  // MIDI DIN5 icon  
+    lastModeShown = g_CVcontrolMode;
   }
 }
 
@@ -901,7 +921,7 @@ void UserState_SetCVOptions()
     Disp_PutImage(config_icon_9x9, 9, 9);  // Config icon
     Disp_SetFont(MONO_8_NORM);
     Disp_PosXY(4, 16);
-    Disp_PutText("Pitch Quantize....");
+    Disp_PutText("Pitch Quantize: ");
     DisplayButtonLegend(BUTT_POS_A, "Cancel");
     DisplayButtonLegend(BUTT_POS_B, "Affirm");
     setting = g_Config.Pitch_CV_Quantize;
@@ -916,7 +936,7 @@ void UserState_SetCVOptions()
     doRefresh = TRUE;
   }
 
-  if (ButtonHit('A'))  GoToNextScreen(SETUP_MENU);  // Exit
+  if (ButtonHit('A'))  GoToNextScreen(SET_CV_BASE_NOTE);  // Exit
   if (ButtonHit('B'))  // Affirm
   {
     if (settingChanged) 
@@ -924,7 +944,7 @@ void UserState_SetCVOptions()
       g_Config.Pitch_CV_Quantize = setting & 1;
       // todo: store setting in eeprom
     }
-    GoToNextScreen(SET_MASTER_TUNE);
+    GoToNextScreen(SET_CV_BASE_NOTE);
   }
 
   if (doRefresh) 
@@ -934,6 +954,62 @@ void UserState_SetCVOptions()
     Disp_BlockClear(24, 8);  // erase existing text
     if (setting & 1)  Disp_PutText("ON");
     else  Disp_PutText("OFF");
+  }
+}
+
+
+void UserState_SetCVBaseNote()
+{
+  static const char *noteMnemonic[] = 
+          { "C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B" };
+  static uint8 setting;
+  static bool settingChanged;
+  bool doRefresh = FALSE;
+
+  if (isNewScreen) 
+  {
+    DisplayTitleBar("CV Base Note");
+    Disp_Mode(SET_PIXELS);
+    Disp_PosXY(116, 1);
+    Disp_PutImage(config_icon_9x9, 9, 9);  // Config icon
+    DisplayButtonLegend(BUTT_POS_A, "Cancel");
+    DisplayButtonLegend(BUTT_POS_B, "Affirm");
+    setting = g_Config.Pitch_CV_BaseNote;
+    settingChanged = FALSE;
+    doRefresh = TRUE;
+  }
+
+  if (PotMoved()) 
+  {
+    setting = 24 + PotPosition() / 8;  // range 24..55
+    settingChanged = TRUE;
+    doRefresh = TRUE;
+  }
+
+  if (ButtonHit('A'))  GoToNextScreen(SETUP_MENU);  // Exit
+  if (ButtonHit('B'))  // Affirm
+  {
+    if (settingChanged) 
+    {
+      g_Config.Pitch_CV_BaseNote = setting;
+      // *** todo: store settings in eeprom ***
+    }
+    GoToNextScreen(SET_MASTER_TUNE);
+  }
+
+  if (doRefresh) 
+  {
+    Disp_SetFont(MONO_16_NORM);
+    Disp_PosXY(40, 24);
+    Disp_BlockClear(80, 16);  // clear existing data
+    Disp_PutDecimal(setting, 2);  // MIDI Note #
+    ////
+    Disp_SetFont(PROP_12_NORM);
+    Disp_PosXY(Disp_GetX(), 28);  // down 4 px
+    Disp_PutText(" (");
+    Disp_PutText(noteMnemonic[setting % 12]);  // Musical notation
+    Disp_PutDecimal((setting / 12 - 1), 1);  // 0..3
+    Disp_PutChar(')');
   }
 }
 

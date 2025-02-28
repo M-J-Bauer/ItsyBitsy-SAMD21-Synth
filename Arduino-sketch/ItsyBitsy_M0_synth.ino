@@ -9,7 +9,7 @@
  *
  * Licence:    Open Source (Unlicensed) -- free to copy, distribute, modify
  *
- * Version:    1.3  (See Revision History file)
+ * Version:    1.4  (See Revision History file)
  */
 #include <fast_samd21_tc3.h>
 #include <Wire.h>
@@ -24,8 +24,8 @@ uint32_t last_millis;          // for synth B/G process
 uint8_t  channelSwitches;
 uint8_t  g_MidiChannel;        // 1..16  (16 = broadcast, omni)
 uint8_t  g_MidiMode;           // OMNI_ON_MONO or OMNI_OFF_MONO
-bool  g_DisplayEnabled;        // True if OLED display enabled
-bool  g_CVcontrolMode;         // True if CV control enabled
+bool     g_DisplayEnabled;     // True if OLED display enabled
+bool     g_CVcontrolMode;      // True if CV control enabled
 
 void  TC3_Handler(void);       // Audio ISR - defined in "m0_synth_engine"
 
@@ -46,9 +46,6 @@ void  setup()
   pinMode(GATE_INPUT, INPUT);
   digitalWrite(SPI_DAC_CS, HIGH);  // Set DAC CS High (idle)
     
-  DefaultConfigData();      // *** todo: read from EEPROM ***
-  PresetSelect(g_Config.PresetLastSelected);
-
   // Read the MIDI channel-select switches and set receiver mode
   channelSwitches = 0;
   if (digitalRead(CHAN_SWITCH_S1) == HIGH)  channelSwitches += 1;
@@ -59,6 +56,9 @@ void  setup()
   g_MidiChannel = channelSwitches;
   if (channelSwitches == 0)  g_MidiMode = OMNI_ON_MONO;
   else  g_MidiMode = OMNI_OFF_MONO;
+
+  DefaultConfigData();      // *** todo: read from EEPROM ***
+  PresetSelect(g_Config.PresetLastSelected);
       
   // Set wave-table sampling interval for audio ISR - Timer/Counter #3
   fast_samd21_tc3_configure((float) 1000000 / SAMPLE_RATE_HZ);  // period = 31.25us
@@ -80,6 +80,7 @@ void  setup()
     SH1106_Test_Pattern();     // test OLED display
     while (millis() < 600) ;   // delay to view test pattern
     Disp_ClearScreen();
+    SH1106_SetContrast(10);
     GoToNextScreen(0);         // 0 => STARTUP
   }
 
@@ -88,31 +89,28 @@ void  setup()
 }
 
 // Main background process loop...
-// Test-point TP2 (D5) was used to check for periodic task over-runs.
 //
 void  loop() 
 {
   MidiInputService();
-  if (g_CVcontrolMode)  CVinputService();
+  CVinputService();
 
   if (millis() != last_millis)  // once every millisecond...
   {
     last_millis = millis();
     SynthProcess();
-    // digitalWrite(TESTPOINT2, LOW);  // pulse duty = 1ms (approx)
   }
   
   if ((millis() - startPeriod_5ms) >= 5)  // 5ms period ended
   {
-	  startPeriod_5ms = millis();
-    // digitalWrite(TESTPOINT2, HIGH);  // pulse period = 5ms
-	  if (g_DisplayEnabled)  { ButtonScan();  PotService(); }
+      startPeriod_5ms = millis();
+      if (g_DisplayEnabled)  { ButtonScan();  PotService(); }
   }
   
   if ((millis() - startPeriod_50ms) >= 50)  // 50ms period ended
   {
-	  startPeriod_50ms = millis();
-	  if (g_DisplayEnabled)  UserInterfaceTask();
+      startPeriod_50ms = millis();
+      if (g_DisplayEnabled)  UserInterfaceTask();
   }
     
   if ((millis() - startPeriod_1sec) >= 1000)  // 1 second period
@@ -142,12 +140,9 @@ void  PresetSelect(uint8 preset)
     g_Config.PresetLastSelected = preset;
   }
 
-  if (g_CVcontrolMode)  // Override conflicting config & patch param's
-  {
-    g_Config.PitchBendMode = PITCH_BEND_DISABLED;
-    g_Config.VibratoCtrlMode = VIBRATO_BY_CV_AUXIN;  // Enable LFO FM
-    g_Patch.LFO_FM_Depth = 0;  // initialize (in case CV4 not used)
-  }
+  // Override conflicting config param(s)
+  if (g_CVcontrolMode)  g_Config.PitchBendMode = PITCH_BEND_DISABLED;
+  else  g_Config.PitchBendMode = PITCH_BEND_BY_MIDI_MSG;  // but, vibrato takes precedence
 }
 
 
@@ -164,6 +159,10 @@ void  PresetSelect(uint8 preset)
  * The module also responds to valid messages addressed to channel 16, regardless of the channel
  * switch setting, so that the host controller can transmit a "broadcast" message to all modules
  * on the MIDI network simultaneously.
+ *
+ * Whenever a MIDI 'Note-On' message is received, the synth 'control mode' is switched to MIDI,
+ * i.e. CV control mode is inhibited so that oscillator pitch is not affected by the CV1 input,
+ * except if CV1 is configured to control Pitch BEND.
  */
 void  MidiInputService()
 {
@@ -257,6 +256,7 @@ void  ProcessMidiMessage(uint8 *midiMessage, short msgLength)
     }
     case NOTE_ON_CMD:
     {
+      g_CVcontrolMode = FALSE;
       if (velocity == 0)  SynthNoteOff(noteNumber);
       else  SynthNoteOn(noteNumber, velocity);
       break;
@@ -319,53 +319,83 @@ void  ProcessControlChange(uint8 *midiMessage)
   }
   // The following CC numbers are to set synth Config parameters:
   // ````````````````````````````````````````````````````````````````````````
+  else if (CCnumber == 38)  // Set Master Tune param. (= Data Entry LSB)
+  {
+    g_Config.MasterTuneOffset = dataByte - 64;  // Offset by 64
+    // *** todo:  store config param's in EEPROM ***
+  }
   else if (CCnumber == 85)  // Set pitch CV base note
   {
-    if (dataByte < 61)  g_Config.Pitch_CV_BaseNote = dataByte;
+    if (dataByte >= 12 && dataByte < 60)  g_Config.Pitch_CV_BaseNote = dataByte;
+    // *** todo:  store config param's in EEPROM ***
   }
   else if (CCnumber == 86)  // Set audio ampld control mode
   {
     if (dataByte < 4)  g_Config.AudioAmpldCtrlMode = dataByte;
+    // *** todo:  store config param's in EEPROM ***
   }
   else if (CCnumber == 87)  // Set vibrato control mode
   {
     if (dataByte < 4)  g_Config.VibratoCtrlMode = dataByte;
+    // *** todo:  store config param's in EEPROM ***
   }
   else if (CCnumber == 88)  // Set pitch-bend control mode
   {
     if (dataByte < 4)  g_Config.PitchBendMode = dataByte;
+    // *** todo:  store config param's in EEPROM ***
   }
   else if (CCnumber == 89)  // Set reverb mix level
   {
     if (dataByte <= 100)  g_Config.ReverbMix_pc = dataByte;
+    // *** todo:  store config param's in EEPROM ***
   }
   // The following CC numbers are to set synth Patch parameters:
   // ````````````````````````````````````````````````````````````````````````
   else if (CCnumber == 70)  // Set osc. mixer output gain (unit = 0.1)
   {
-    g_Patch.MixerOutGain_x10 = dataByte; 
+    if (dataByte != 0)  g_Patch.MixerOutGain_x10 = dataByte; 
   }
-  else if (CCnumber == 71)  // Set ampld limiter level (%)
+  else if (CCnumber == 71)  // Set ampld limiter level (%), 0 => OFF
   {
     if (dataByte <= 95)  g_Patch.LimiterLevelPc = dataByte; 
   }
+  else if (CCnumber == 72)  // Set Ampld ENV Release Time (unit = 100ms)
+  {
+    if (dataByte != 0 && dataByte <= 100)  g_Patch.EnvReleaseTime = (uint16) dataByte * 100; 
+  }
+  else if (CCnumber == 73)  // Set Ampld ENV Attack Time (unit = 100ms)
+  {
+    if (dataByte != 0 && dataByte <= 100)  g_Patch.EnvAttackTime = (uint16) dataByte * 100; 
+  }
+  else if (CCnumber == 74)  // Set Ampld ENV Peak Hold Time (unit = 100ms)
+  {
+    if (dataByte <= 100)  g_Patch.EnvHoldTime = (uint16) dataByte * 100; 
+  }
+  else if (CCnumber == 75)  // Set Ampld ENV Deacy Time (unit = 100ms)
+  {
+    if (dataByte != 0 && dataByte <= 100)  g_Patch.EnvDecayTime = (uint16) dataByte * 100; 
+  }
+  else if (CCnumber == 76)  // Set Ampld ENV Sustain Level (unit = 1%)
+  {
+    if (dataByte <= 100)  g_Patch.EnvSustainLevel = (uint16) dataByte; 
+  }
   else if (CCnumber == 77)  // Set LFO frequency (data = Hz, max 50)
   {
-    if (dataByte <= 50)  g_Patch.LFO_Freq_x10 = dataByte * 10; 
+    if (dataByte != 0 && dataByte <= 50)  g_Patch.LFO_Freq_x10 = (uint16) dataByte * 10; 
   }
   else if (CCnumber == 78)  // Set LFO ramp time (unit = 100ms)
   {
-    if (dataByte <= 100)  g_Patch.LFO_RampTime = dataByte * 100; 
+    if (dataByte <= 100)  g_Patch.LFO_RampTime = (uint16) dataByte * 100; 
   }
   else if (CCnumber == 79)  // Set LFO FM (vibrato) depth (unit = 5 cents)
   {
-    if (dataByte <= 120)  g_Patch.LFO_FM_Depth = dataByte * 5;
+    if (dataByte <= 120)  g_Patch.LFO_FM_Depth = (uint16) dataByte * 5;
   }
   // Mode Change messages
   // ````````````````````````````````````````````````````````````````````````
   else if (CCnumber == 120 || CCnumber == 123)
   {
-    SynthPrepare();  // All Sound Off - Kill note playing
+    SynthPrepare();  // All Sound Off & Kill note playing
   }
 }
 
@@ -380,7 +410,7 @@ void  ProcessMidiSystemExclusive(uint8 *midiMessage, short msgLength)
 {
   if (midiMessage[1] == SYS_EXCL_REMI_ID)  // "Manufacturer ID" match
   {
-      // Nothing to be done in this application !
+      // Nothing to be done in this version !
   }
 }
 
@@ -406,15 +436,18 @@ int  MIDI_GetMessageLength(uint8 statusByte)
  * Function:  CVinputService()
  *
  * The CV input service routine is called frequently as possible from the main process loop.
- * This routine monitors the 4 external analog (CV) inputs and the GATE input.
+ * If CV control mode is active, this routine monitors the 4 external analog (CV) inputs;
+ * otherwise, only the GATE input is monitored. If a signal transition is detected on the GATE
+ * input, the synth is switched to CV control mode (if it is not already in CV mode).
+ * NB: The NE555 (Schmitt Trigger) on the GATE input inverts the logic state!
  *
  * Oscillator frequency (pitch) is updated according to the voltage on CV1 input,
  * using an exponential transfer function, i.e. 1 volt per octave.
  * Synth Modulation and Expression levels are updated according to the voltages on
  * CV2 and CV3 inputs (resp).  Input CV4 controls LFO FM depth, if the respective
  * vibrato control mode parameter is set accordingly.
- * The GATE logic input controls the synth envelope generators, triggering Attack
- * and Release events on the Gate signal leading and trailing edges (resp).
+ * The GATE input controls the synth envelope generators, triggering Attack and Release 
+ * events on the Gate signal leading and trailing edges (resp).
  */
 void  CVinputService()
 {
@@ -429,13 +462,20 @@ void  CVinputService()
   int  CV1Bound, deltaCV1;     // mV
   float  freqBound, freqStep, deltaFreq;  // Hz
 
+  if (GATE_state == 0 && digitalRead(GATE_INPUT) == LOW)  // GATE rising edge
+    { g_CVcontrolMode = TRUE;  SynthTriggerAttack();  GATE_state = 1; }
+  if (GATE_state == 1 && digitalRead(GATE_INPUT) == HIGH)  // GATE falling edge 
+    { SynthTriggerRelease();  GATE_state = 0; }
+
+  if (!g_CVcontrolMode)  return;  // MIDI control mode is active... bail!
+
   if ((callCount & 1) == 0)  // on every alternate call...
   {
     digitalWrite(TESTPOINT2, HIGH);  // Measure execution time of CV1 service (*TEMP*)
     //
     inputSignal_mV = ((int) analogRead(A1) * g_Config.CV1_FullScale_mV) / 4095;
-    CV1readingFilt -= CV1readingFilt >> 5;   // Apply 1st-order IIR filter, K = 1/32
-    CV1readingFilt += inputSignal_mV << 11;  // input signal converted to fixed-pt * K
+    CV1readingFilt -= CV1readingFilt >> 3;   // Apply 1st-order IIR filter, K = 1/8
+    CV1readingFilt += inputSignal_mV << 13;  // input signal converted to fixed-pt * K
     inputSignal_mV = CV1readingFilt >> 16;   // integer part
     //
     if (g_Config.Pitch_CV_Quantize)  // Pitch quantized to nearest semitone
@@ -458,6 +498,7 @@ void  CVinputService()
     //
     digitalWrite(TESTPOINT2, LOW); 
   }
+
   if (callCount == 1)
   {
     inputSignal_mV = ((int) analogRead(A2) * 5100) / 4095;
@@ -492,13 +533,7 @@ void  CVinputService()
     }
   }
 
-  // External GATE signal is active-HIGH;  MCU GATE# input is active-LOW
-  if (GATE_state == 0 && digitalRead(GATE_INPUT) == LOW)  // leading edge
-    { SynthTriggerAttack();  GATE_state = 1; }
-  if (GATE_state == 1 && digitalRead(GATE_INPUT) == HIGH)  // trailing edge
-    { SynthTriggerRelease();  GATE_state = 0; }
-
-  if (++callCount >= 6)  callCount = 0;  // repeat sequence every 30ms
+  if (++callCount >= 6)  callCount = 0;  // repeat sequence every 6 calls
 }
 
 
@@ -517,8 +552,8 @@ void  DefaultConfigData(void)
   g_Config.PitchBendMode = PITCH_BEND_BY_MIDI_MSG;
   g_Config.PitchBendRange = 2;        // semitones (max. 12)
   g_Config.ReverbMix_pc = 15;         // 0..100 % (typ. 15)
-  g_Config.PresetLastSelected = 0;    // user preference
-  g_Config.Pitch_CV_BaseNote = 36;    // MIDI note # (24..59)
+  g_Config.PresetLastSelected = 3;    // user preference
+  g_Config.Pitch_CV_BaseNote = 36;    // MIDI note # (12..59)
   g_Config.Pitch_CV_Quantize = 0;     // 0:Off, 1:On
   g_Config.CV1_FullScale_mV = 5100;   // 5100 => uncalibrated
   g_Config.MasterTuneOffset = 0;      // cents (-100 ~ +100)
@@ -585,7 +620,7 @@ const  PatchParamTable_t  g_PresetPatch[] =
     10, 0,                          // Mixer Gain x10, Limit %FS
   },
   {
-    "Tubular Bell",                 // 03
+    "Tubular Bells",                // 03
     { 1, 6, 9, 8, 0, 11 },          // Osc Freq Mult index (0..11)
     { 0, 0, 7, 0, 0, 0 },           // Osc Ampld Modn src (0..9)
     { 0, 33, -35, 0, 0, 0 },        // Osc Detune, cents (-600..+600)
@@ -841,6 +876,18 @@ const  PatchParamTable_t  g_PresetPatch[] =
     70, 5, 0, 70,                   // LFO: Hz x10, Ramp, FM %, AM %
     7, 0,                           // Mixer Gain x10, Limit %FS
   },  
+  {
+    "Random1",                      // 24 *************  from JPM to be tested  **********
+    { 0, 1, 2, 3, 4, 5 },           // Osc Freq Mult index (0..11)
+    { 6, 7, 6, 2, 0,  2 },          // Osc Ampld Modn source (0..7)
+    { 0, 0, 0, 0, 0, 0 },           // Osc Detune cents (+/-600)
+    { 5, 5, 4, 12, 8, 14 },         // Osc Mixer level/step (0..16)
+    5, 20, 100, 0, 300, 2,          // Ampld Env (A-H-D-S-R), Amp Mode
+    20, 0, 200, 80,                 // Contour Env (S-D-R-H)
+    1500, 25,                       // ENV2: Dec, Sus %
+    40, 5, 20, 20,                  // LFO: Hz x10, Ramp, FM %, AM %
+    7, 0,                           // Mixer Gain x10, Limit %FS
+  },
   //
   //
   //
