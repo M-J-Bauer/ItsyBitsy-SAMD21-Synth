@@ -34,28 +34,45 @@ Fixed bug in 'Master Tune' setup screen... 'Cancel' malfunction.
 
 Added feature: Display brightness is adjustable using pot in 'Home' screen.
 
+v1.4  25-02-2025  (= v1.3R)
+````````````````
+Added macro in header file "M0-synth-defs.h" (line 13) to compile for either
+Adafruit M0 or (RoboDyn) SAMD21-M0-Mini board.  This is necessary because
+the SAMD21-M0-Mini board is not 100% I/O compatible with the Adafruit M0.
+
+v1.5  28-02-2025
+````````````````
+Modified 'control mode' to switch automatically between MIDI and CV input...
+Mode is initialized at power-on/reset according to jumper JP1 setting;
+if MIDI 'Note-On' message rec'd, control mode switches to MIDI;
+if GATE input transitions from Low to High, mode switches to CV.
+
+Reduced filter time-constant on CV1 input signal to speed up response to
+changes in pitch.
+
+Added MIDI message support for Master Tune and Ampld Envelope (ENV1) param's.
+
+Added UI screen to allow 'CV Base Note' setting, range 24 (C1) to 55 (G3),
+accessible via 'CV Options' in SETUP menu. (Also settable via MIDI msg.)
+
+Minor cosmetic changes to a few UI screens.
 
 
 ================================================================================
 
-To do:
-``````
-+ MIDI CC message support for Master Tune and ENV param's.
-
-+ Extend UI screen 'CV Options' to allow CV1 (pitch) base note setting...
-  (range 24 to 59)  Button B swaps between Pitch Quantize and Base Note.
-
-+ Add support for Pitch Bend using CV1 input in MIDI control mode. (? TBC)
+To do (?):
+``````````
++ Add support for Pitch Bend using CV1 input in MIDI control mode.
                   ``````````       ```          `````````````````
-+ Add support for Modulation using CV2 input in MIDI control mode. (? TBC)
++ Add support for Modulation using CV2 input in MIDI control mode.
                   ``````````       ```          `````````````````
-+ Tweak presets to produce more sound nuances... using modulation, etc.
++ Tweak presets to produce more sound nuances using various osc AM sources.
 
-+ Add support for I2C EEPROM to store config data... (use 3rd-party lib?)
++ Add support for I2C EEPROM to store config data.
 
-+ Heartbeat LED on RobotDyn M0-Mini board? (Use TX or RX LED)
++ Heartbeat LED on RobotDyn M0-Mini board. (Use TX or RX LED)
 
-+ Add driver for 'DotStar' LED on Adafruit board? (Install lib? Bit-bang?)
++ Add driver for 'DotStar' LED on Adafruit board. (Install lib? Bit-bang?)
 
 
 ________________________________________________________________________________
