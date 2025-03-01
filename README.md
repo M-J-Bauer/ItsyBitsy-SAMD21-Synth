@@ -14,7 +14,7 @@ NB: One batch (maybe all) of the 'RobotDyn' SAMD21 M0-Mini board has digital pin
 (See https://github.com/BLavery/SAMD21-M0-Mini)  The schematic is wrong.
 A work-around for this incompatibility is embodied in the firmware (v1.4++).
 
-The 'Sigma-6'synth application was developed originally on a PIC32MX platform using Microchip MPLAB.X IDE.
+The 'Sigma-6' synth application was developed originally on a PIC32MX platform using Microchip MPLAB.X IDE.
 Since it is now difficult to obtain a breakout module or proto board based on the PIC32MX family,
 I have migrated the application to a better supported, readily available 32-bit MCU device, 
 i.e. ATSAMD21, as in Arduino Zero, Adafruit SAMD21 M0 Express and compatibles. 
