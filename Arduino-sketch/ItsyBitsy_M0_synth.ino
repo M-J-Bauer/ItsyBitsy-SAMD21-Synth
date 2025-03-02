@@ -9,7 +9,7 @@
  *
  * Licence:    Open Source (Unlicensed) -- free to copy, distribute, modify
  *
- * Version:    1.4  (See Revision History file)
+ * Version:    1.5  (See Revision History file)
  */
 #include <fast_samd21_tc3.h>
 #include <Wire.h>
