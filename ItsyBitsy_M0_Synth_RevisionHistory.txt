@@ -48,7 +48,7 @@ if MIDI 'Note-On' message rec'd, control mode switches to MIDI;
 if GATE input transitions from Low to High, mode switches to CV.
 
 Reduced filter time-constant on CV1 input signal to speed up response to
-changes in pitch.
+changes in pitch. (Not fully tested yet.)
 
 Added MIDI message support for Master Tune and Ampld Envelope (ENV1) param's.
 
@@ -57,23 +57,29 @@ accessible via 'CV Options' in SETUP menu. (Also settable via MIDI msg.)
 
 Minor cosmetic changes to a few UI screens.
 
+v1.6  07-03-2025
+````````````````
+Modified CV1 CAL screen to show both uncalibrated reading (using 5100mV FS) and 
+adjusted reading (using config param).  If correctly calibrated, the adjusted
+reading will equal the reference voltage applied to the CV1 input (±5 mV).
+
+Improved Preset 01: "Electric Piano #1".  Added presets 25..28.
+
+Fixed a bug in Reverb UI setting... (need to re-calculate variables).
+
+
 
 ================================================================================
 
 To do (?):
 ``````````
+
++ Add support for I2C EEPROM to store config data.
+
 + Add support for Pitch Bend using CV1 input in MIDI control mode.
                   ``````````       ```          `````````````````
 + Add support for Modulation using CV2 input in MIDI control mode.
                   ``````````       ```          `````````````````
-+ Tweak presets to produce more sound nuances using various osc AM sources.
-
-+ Add support for I2C EEPROM to store config data.
-
-+ Heartbeat LED on RobotDyn M0-Mini board. (Use TX or RX LED)
-
-+ Add driver for 'DotStar' LED on Adafruit board. (Install lib? Bit-bang?)
-
 
 ________________________________________________________________________________
 
