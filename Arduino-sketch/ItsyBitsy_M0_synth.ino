@@ -9,7 +9,7 @@
  *
  * Licence:    Open Source (Unlicensed) -- free to copy, distribute, modify
  *
- * Version:    1.5  (See Revision History file)
+ * Version:    1.6  (See Revision History file)
  */
 #include <fast_samd21_tc3.h>
 #include <Wire.h>
@@ -80,7 +80,7 @@ void  setup()
     SH1106_Test_Pattern();     // test OLED display
     while (millis() < 600) ;   // delay to view test pattern
     Disp_ClearScreen();
-    SH1106_SetContrast(10);
+    SH1106_SetContrast(30);
     GoToNextScreen(0);         // 0 => STARTUP
   }
 
@@ -552,7 +552,7 @@ void  DefaultConfigData(void)
   g_Config.PitchBendMode = PITCH_BEND_BY_MIDI_MSG;
   g_Config.PitchBendRange = 2;        // semitones (max. 12)
   g_Config.ReverbMix_pc = 15;         // 0..100 % (typ. 15)
-  g_Config.PresetLastSelected = 3;    // user preference
+  g_Config.PresetLastSelected = 1;    // user preference
   g_Config.Pitch_CV_BaseNote = 36;    // MIDI note # (12..59)
   g_Config.Pitch_CV_Quantize = 0;     // 0:Off, 1:On
   g_Config.CV1_FullScale_mV = 5100;   // 5100 => uncalibrated
@@ -596,16 +596,16 @@ const  PatchParamTable_t  g_PresetPatch[] =
   },
   //----------  Presets with percussive ampld envelope profile  -------------
   {
-    "Electric Piano",               // 01
-    { 1, 4, 5, 6, 7, 8 },           // Osc Freq Mult index (0..11)
-    { 0, 0, 0, 0, 3, 3 },           // Osc Ampld Modn src (0..9)
-    { 0, 0, -2, 3, -7, 6 },         // Osc Detune cents (+/-600)
-    { 15, 13, 11, 9, 9, 8 },        // Osc Mixer levels (0..16)
-    5, 50, 500, 0, 300, 2,          // Amp Env (A-H-D-S-R), Amp Mode
-    5, 20, 1000, 95,                // Contour Env (S-D-R-H)
-    200, 50,                        // ENV2: Dec, Sus %
-    30, 500, 30, 20,                // LFO: Hz x10, Ramp, FM %, AM %
-    7, 0,                           // Mixer Gain x10, Limit %FS
+    "Electric Piano #1",            // 01
+    { 1, 3, 5, 7, 9, 11 },          // Osc Freq Mult index (0..11)
+	{ 0, 0, 0, 0, 0, 0 },           // Osc Ampld Modn source (0..7)
+	{ 0, 0, 0, 0, 0, 0 },           // Osc Detune cents (+/-600)
+	{ 14, 12, 8, 8, 5, 0 },         // Osc Mixer level/step (0..16)
+	10, 70, 1500, 0, 500, 2,        // Ampld Env (A-H-D-S-R), Amp Mode
+	5, 20, 1000, 95,                // Contour Env (S-D-R-H)
+	200, 16,                        // ENV2: Dec, Sus %
+	30, 500, 0, 20,                 // LFO: Hz x10, Ramp, FM %, AM %
+	33, 60,                         // Mixer Gain x10, Limit %FS
   },
   {
     "Steel Tine Clavier",           // 02
@@ -778,7 +778,7 @@ const  PatchParamTable_t  g_PresetPatch[] =
     70, 500, 30, 0,                 // LFO: Hz x10, Ramp, FM %, AM %
     7, 0,                           // Mixer Gain x10, Limit %FS
   },
-    //  More organ presets (as if there were not enough already) ..............
+  //  More organ presets (as if there were not enough already) ..............
   {
     "Bauer Organ #1",               // 16
     { 1, 4, 6, 8, 10, 0 },          // Osc Freq Mult index (0..11)
@@ -808,7 +808,7 @@ const  PatchParamTable_t  g_PresetPatch[] =
     { 1, 4, 6, 8, 10, 0 },          // Osc Freq Mult index (0..11)
     { 0, 0, 0, 0, 3, 0 },           // Osc Ampld Modn src (0..9)
     { 0, 4, -4, 3, -2, 3 },         // Osc Detune, cents (-600..+600)
-    { 13, 13, 0, 9, 13, 9 },       // Mixer Input levels (0..16)
+    { 13, 13, 0, 9, 13, 9 },        // Mixer Input levels (0..16)
     20, 20, 400, 70, 300, 2,        // Amp Env (A-H-D-S-R), Amp Mode
     5, 20, 600, 40,                 // Contour Env (S-D-R-H)
     500, 50,                        // ENV2: Decay, Sus %
@@ -827,7 +827,7 @@ const  PatchParamTable_t  g_PresetPatch[] =
     70, 500, 30, 0,                 // LFO: Hz x10, Ramp, FM %, AM %
     10, 0,                          // Mixer Gain x10, Limit %FS
   },
-  // Experimental presets -- maybe, maybe not ...
+  // Experimental presets -- some need improvement ---
   {
     "Bass Overdrive",               // 20  (meant for heavy bass!)
     { 0, 1, 4, 6, 7, 8 },           // Osc Freq Mult index (0..11)
@@ -841,7 +841,7 @@ const  PatchParamTable_t  g_PresetPatch[] =
     33, 50,                         // Mixer Gain x10, Limit %FS
   },
   {
-    "Bellbird       (JPM)",         // 21
+    "Bellbird  (JPM)",              // 21  (created by JPM)
     { 9, 5, 8, 1, 8, 5 },           // Osc Freq Mult index (0..11)
     { 7, 3, 3, 3, 7, 7 },           // Osc Ampld Modn source (0..7)
     { 0, 0, 0, 0, 0, 0 },           // Osc Detune cents (+/-600)
@@ -853,7 +853,7 @@ const  PatchParamTable_t  g_PresetPatch[] =
     7, 0,                           // Mixer Gain x10, Limit %FS
   },
   {
-    "Dull Tone",                    // 22  (not very good)
+    "Dull Tone",                    // 22  (Steel Drum? - WIP!)
     { 1, 4, 5, 6, 8, 10 },          // Osc Freq Mult index (0..11)
     { 0, 0, 7, 1, 1, 1 },           // Osc Ampld Modn source (0..7)
     { 0, 0, 0, 0, 0, 0 },           // Osc Detune cents (+/-600)
@@ -865,7 +865,7 @@ const  PatchParamTable_t  g_PresetPatch[] =
     7, 0,                           // Mixer Gain x10, Limit %FS
   },
   {
-    "Wobulator",                    // 23  
+    "Wobulator",                    // 23  (Hmmm... needs work!)
     { 0, 1, 2, 3, 4, 5 },           // Osc Freq Mult index (0..11)
     { 0, 7, 7, 2, 0, 2 },           // Osc Ampld Modn source (0..7)
     { 0, 0, 0, 0, 0, 0 },           // Osc Detune cents (+/-600)
@@ -876,8 +876,9 @@ const  PatchParamTable_t  g_PresetPatch[] =
     70, 5, 0, 70,                   // LFO: Hz x10, Ramp, FM %, AM %
     7, 0,                           // Mixer Gain x10, Limit %FS
   },  
+  // Assorted Uncategorized Presets
   {
-    "Random1",                      // 24 *************  from JPM to be tested  **********
+    "Hollow Wood Drum",             // 24  (created by JPM)
     { 0, 1, 2, 3, 4, 5 },           // Osc Freq Mult index (0..11)
     { 6, 7, 6, 2, 0,  2 },          // Osc Ampld Modn source (0..7)
     { 0, 0, 0, 0, 0, 0 },           // Osc Detune cents (+/-600)
@@ -888,8 +889,57 @@ const  PatchParamTable_t  g_PresetPatch[] =
     40, 5, 20, 20,                  // LFO: Hz x10, Ramp, FM %, AM %
     7, 0,                           // Mixer Gain x10, Limit %FS
   },
+  {
+	  "Toy Piano",                    // 25
+	  { 1, 4, 5, 6, 7, 8 },           // Osc Freq Mult index (0..11)
+    { 0, 0, 0, 0, 3, 3 },           // Osc Ampld Modn src (0..9)
+    { 0, 0, -2, 3, -7, 6 },         // Osc Detune cents (+/-600)
+    { 15, 13, 11, 9, 9, 8 },        // Osc Mixer levels (0..16)
+    5, 50, 500, 0, 300, 2,          // Amp Env (A-H-D-S-R), Amp Mode
+    5, 20, 1000, 95,                // Contour Env (S-D-R-H)
+    200, 50,                        // ENV2: Dec, Sus %
+    30, 500, 30, 20,                // LFO: Hz x10, Ramp, FM %, AM %
+    7, 0,                           // Mixer Gain x10, Limit %FS
+	},
+  {
+    "Electric Piano #2",            // 26  (delete or improve!)
+    { 1, 4, 5, 6, 7, 8 },           // Osc Freq Mult index (0..11)
+    { 0, 3, 3, 0, 0, 0 },           // Osc Ampld Modn source (0..7)
+    { 0, 0, 0, 0, 0, 0 },           // Osc Detune cents (+/-600)
+    { 14, 10, 11, 9, 9, 0 },        // Osc Mixer level/step (0..16)
+    10, 70, 1000, 0, 500, 2,        // Ampld Env (A-H-D-S-R), Amp Mode
+    5, 20, 1000, 95,                // Contour Env (S-D-R-H)
+    200, 25,                        // ENV2: Dec, Sus %
+    30, 500, 0, 20,                 // LFO: Hz x10, Ramp, FM %, AM %
+    33, 50,                         // Mixer Gain x10, Limit %FS
+  },
+  {
+    "Hammond Essence",              // 27  (swap with a "Bauer" organ?)
+    { 1, 3, 4, 5, 7, 8 },           // Osc Freq Mult index (0..11)
+    { 0, 0, 0, 0, 0, 3 },           // Osc Ampld Modn source (0..7)
+    { 0, -7, 12, 4, 0, 3 },         // Osc Detune cents (+/-600)
+    { 13, 3, 0, 9, 0, 15 },         // Osc Mixer level/step (0..16)
+    10, 0, 400, 100, 300, 2,        // Ampld Env (A-H-D-S-R), Amp Mode
+    5, 20, 600, 40,                 // Contour Env (S-D-R-H)
+    200, 25,                        // ENV2: Dec, Sus %
+    70, 500, 20, 0,                 // LFO: Hz x10, Ramp, FM %, AM %
+    7, 0,                           // Mixer Gain x10, Limit %FS
+  },
+  // Yet more Uncategorized Presets
+  {
+    "Unfinished Synthesy",          // 28  (Vibraphone? - WIP!)
+    { 0, 1, 4, 6, 7, 10 },          // Osc Freq Mult index (0..11)
+    { 0, 2, 0, 2, 0, 0 },           // Osc Ampld Modn source (0..7)
+    { 0, 0, 0, 0, 0, 0 },           // Osc Detune cents (+/-600)
+    { 14, 12, 0, 6, 0, 12 },        // Osc Mixer level/step (0..16)
+    5, 20, 1000, 0, 300, 2,         // Ampld Env (A-H-D-S-R), Amp Mode
+    0, 0, 200, 100,                 // Contour Env (S-D-R-H)
+    200, 25,                        // ENV2: Dec, Sus %
+    70, 5, 0, 70,                   // LFO: Hz x10, Ramp, FM %, AM %
+    10, 0,                          // Mixer Gain x10, Limit %FS
+  },
   //
-  //
+  // To do:  Add 3 more presets (total = 32) .............
   //
 };
 

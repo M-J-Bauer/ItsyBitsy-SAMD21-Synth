@@ -125,7 +125,7 @@ void  SynthPrepare()
     v_SynthEnable = 0;      // Disable the synth tone-generator
 
     if (SPI_setupDone)  SPI.endTransaction();  // already begun
-    else  // initialize PSI -- once only at power-on/reset
+    else  // initialize SPI -- once only at power-on/reset
     { 
         SPI.begin();  
         SPI.beginTransaction(SPISettings(20000000, MSBFIRST, SPI_MODE0));  

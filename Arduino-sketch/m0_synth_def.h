@@ -8,7 +8,7 @@
 
 #include "common_def.h"
 
-#define FIRMWARE_VERSION        "1.5" 
+#define FIRMWARE_VERSION        "1.6" 
 
 #define USE_SAMD21_M0_MINI_MCU  FALSE    // Set TRUE to use Robotdyn SAMD21 M0-MINI board
 

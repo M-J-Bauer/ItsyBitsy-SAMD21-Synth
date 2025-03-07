@@ -425,8 +425,8 @@ void UserState_StartupScreen()
 
   if (ButtonHit('A'))
   {
-	  if (g_CVcontrolMode) GoToNextScreen(CALIBRATE_CV1);
-	  else  GoToNextScreen(HOME_SCREEN);
+      if (g_CVcontrolMode) GoToNextScreen(CALIBRATE_CV1);
+      else  GoToNextScreen(HOME_SCREEN);
   }
   if (ButtonHit('B')) GoToNextScreen(CONFIRM_DEFAULT);
 
@@ -881,6 +881,7 @@ void UserState_SetReverbLevel()
     setting = ((int)PotPosition() * 100) / 255;  // 0..100
     setting = (setting / 5) * 5;  // quantize, step size = 5
     g_Config.ReverbMix_pc = setting;
+    SynthPrepare();  // re-calculate reverb variables
     doRefresh = TRUE;
   }
 
@@ -1520,7 +1521,7 @@ void  UserState_Calibrate_CV1()
 {
   static int  callsSinceLastRefresh;
   static int  aveReading_x256;  // ADC reading average, fixed-point (8-bit frac.)
-  int  calibReading_mV, thisReading_mV;
+  int  uncalReading_mV, calibReading_mV, thisReading_mV;
 
   // Read CV1 input and apply first-order IIR filter (rolling average), K = 0.125
   thisReading_mV = ((int) analogRead(A1) * 5100) / 4095;
@@ -1531,27 +1532,35 @@ void  UserState_Calibrate_CV1()
   {
     DisplayTitleBar("Calibrate CV1");
     Disp_SetFont(PROP_8_NORM);
-    Disp_PosXY(4, 26);  Disp_PutText("ADC count");
-    Disp_PosXY(72, 26);  Disp_PutText("CV1 input");
+    Disp_PosXY(0, 26);  Disp_PutText("Uncalibrated");
+    Disp_PosXY(72, 26);  Disp_PutText("Adjusted");
     DisplayButtonLegend(BUTT_POS_A, "Done");
-    DisplayButtonLegend(BUTT_POS_B, "Exit");
     callsSinceLastRefresh = 0;
   }
 
   if (ButtonHit('A')) GoToNextScreen(HOME_SCREEN);
   if (ButtonHit('B')) GoToNextScreen(HOME_SCREEN);
   
-  if (++callsSinceLastRefresh >= 10)  // refresh every 0.5 sec
+  if (++callsSinceLastRefresh >= 10)  // refresh every 0.5 sec (10 calls)
   {
+    callsSinceLastRefresh = 0;
+    uncalReading_mV = aveReading_x256 >> 8;  // integer part
+    calibReading_mV = (uncalReading_mV * g_Config.CV1_FullScale_mV) / 5100;
+
     Disp_SetFont(PROP_12_NORM);
     Disp_PosXY(4, 36);
-    Disp_BlockClear(120, 12);  // clear existing data
-    Disp_PutDecimal((uint16) analogRead(A1), 4);  // ADC count
-	  Disp_PosXY(72, 36);
-    Disp_PutDecimal((uint16) (aveReading_x256 >> 8), 4);  // mV
+    Disp_BlockClear(56, 12);  // clear existing data
+    Disp_PutDecimal((uint16) uncalReading_mV, 4);
     Disp_SetFont(PROP_8_NORM);
     Disp_PosXY(Disp_GetX(), 39);
     Disp_PutText(" mV");
-    callsSinceLastRefresh = 0;
+
+    Disp_SetFont(PROP_12_NORM);
+    Disp_PosXY(72, 36);
+    Disp_BlockClear(56, 12);  // clear existing data
+    Disp_PutDecimal((uint16) calibReading_mV, 4);
+    Disp_SetFont(PROP_8_NORM);
+    Disp_PosXY(Disp_GetX(), 39);
+    Disp_PutText(" mV");
   }
 }
