@@ -7,7 +7,6 @@
 
 v1.0  20-01-2025
 ````````````````
-Preliminary release on GitHub.
 Minimal functionality... No OLED user-interface, no CV control. 
 Sound engine tested OK. MIDI control tested OK.
 
@@ -68,13 +67,40 @@ Improved Preset 01: "Electric Piano #1".  Added presets 25..28.
 Fixed a bug in Reverb UI setting... (need to re-calculate variables).
 
 
+v1.7  12-03-2025 -- WIP
+```````````````````````
+Fixed a bug in CV Mode (?) -- Delayed (or no) response to GATE signal.
+
+Added support for 24LC08 EEPROM to store config data. <!> NOT TESTED <!>
+Start-up screen shows a warning message if EEPROM is faulty or not fitted.
+
+Added "auto-detect" function for OLED display.  
+No need to tie button inputs to GND where OLED is not fitted.
+
+v1.7.2  13-03-2025 -- WIP
+`````````````````````````
+Fixed a bug in EEPROM driver code -- But still more bug(s) in it!
+
+Added option to use CV3 (EXPRN) input for "Velocity" when 'Ampld Ctrl Mode'
+is set to 'ENV1 * Velo'. (Otherwise, velocity is constant 80% FS.)
+
+v1.8  14-03-2025 -- WIP
+`````````````````````````
+Cosmetic changes to Home screen... icons, logos, etc.
+Non-functional changes to Start-up screen (text).
+
+All Setup menu selections are available in any control mode (CV or MIDI).
+
+v1.9  20-03-2025
+````````````````
+EEPROM driver code fixed. (To be verified by JPM.)
+
 
 ================================================================================
 
 To do (?):
 ``````````
-
-+ Add support for I2C EEPROM to store config data.
++ Add config param: Display Brightness (contrast). Setting saved in EEPROM.
 
 + Add support for Pitch Bend using CV1 input in MIDI control mode.
                   ``````````       ```          `````````````````
