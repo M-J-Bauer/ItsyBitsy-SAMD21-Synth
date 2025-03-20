@@ -9,29 +9,35 @@
  *
  * Licence:    Open Source (Unlicensed) -- free to copy, distribute, modify
  *
- * Version:    1.6  (See Revision History file)
+ * Version:    1.9  (See Revision History file)
  */
 #include <fast_samd21_tc3.h>
 #include <Wire.h>
 #include "m0_synth_def.h"
 
-ConfigParams_t  g_Config;      // structure holding config param's
+#define EEPROM_WRITE_INHIBIT()   {}    // Not used... WP tied to GND
+#define EEPROM_WRITE_ENABLE()    {}
 
-uint32_t startPeriod_1sec;     // for 1sec periodic tasks
-uint32_t startPeriod_5ms;      // for 5ms periodic tasks
-uint32_t startPeriod_50ms;     // for 50ms periodic tasks
-uint32_t last_millis;          // for synth B/G process
-uint8_t  channelSwitches;
+int   EEpromWriteData(uint8_t *pData, uint8_t promBlock, uint8_t promAddr, int nbytes);
+int   EEpromReadData(uint8_t *pData, uint8_t promBlock, uint8_t promAddr, int nbytes);
+void  TC3_Handler(void);       // Audio ISR - defined in "m0_synth_engine"
+
+// global data
+ConfigParams_t  g_Config;      // structure holding config param's
 uint8_t  g_MidiChannel;        // 1..16  (16 = broadcast, omni)
 uint8_t  g_MidiMode;           // OMNI_ON_MONO or OMNI_OFF_MONO
+uint8_t  g_GateState;          // GATE signal state (software)
 bool     g_DisplayEnabled;     // True if OLED display enabled
 bool     g_CVcontrolMode;      // True if CV control enabled
-
-void  TC3_Handler(void);       // Audio ISR - defined in "m0_synth_engine"
+bool     g_MidiRxSignal;       // Signal MIDI message received (for GUI)
+bool     g_EEpromFaulty;       // True if EEPROM error or not fitted
+int      g_DebugData;
 
 
 void  setup() 
 {
+  uint8_t  channelSwitches = 0;
+
   pinMode(CHAN_SWITCH_S1, INPUT_PULLUP);
   pinMode(CHAN_SWITCH_S2, INPUT_PULLUP);
   pinMode(CHAN_SWITCH_S3, INPUT_PULLUP);
@@ -46,36 +52,39 @@ void  setup()
   pinMode(GATE_INPUT, INPUT);
   digitalWrite(SPI_DAC_CS, HIGH);  // Set DAC CS High (idle)
     
-  // Read the MIDI channel-select switches and set receiver mode
-  channelSwitches = 0;
   if (digitalRead(CHAN_SWITCH_S1) == HIGH)  channelSwitches += 1;
   if (digitalRead(CHAN_SWITCH_S2) == HIGH)  channelSwitches += 2;
   if (digitalRead(CHAN_SWITCH_S3) == HIGH)  channelSwitches += 4;
   if (digitalRead(CHAN_SWITCH_S4) == HIGH)  channelSwitches += 8;
   if (digitalRead(CV_MODE_JUMPER) == LOW)  g_CVcontrolMode = TRUE;
+
   g_MidiChannel = channelSwitches;
   if (channelSwitches == 0)  g_MidiMode = OMNI_ON_MONO;
   else  g_MidiMode = OMNI_OFF_MONO;
-
-  DefaultConfigData();      // *** todo: read from EEPROM ***
-  PresetSelect(g_Config.PresetLastSelected);
-      
-  // Set wave-table sampling interval for audio ISR - Timer/Counter #3
-  fast_samd21_tc3_configure((float) 1000000 / SAMPLE_RATE_HZ);  // period = 31.25us
-  fast_samd21_tc3_start();
 
   Serial1.begin(31250);        // initialize UART for MIDI IN
   Wire.begin();                // initialize IIC as master
   Wire.setClock(400*1000);     // set IIC clock to 400kHz
   analogReadResolution(12);    // set ADC resolution to 12 bits
+
+  if (EEpromACKresponse() == FALSE)  
+    { g_EEpromFaulty = TRUE; }  // IIC bus error or EEprom not fitted
+
+  if (FetchConfigData() == 0 || g_Config.EEpromCheckWord != 0xABCDEF00) 
+  { 
+    g_EEpromFaulty = TRUE;  // EEprom read failed or data error
+    DefaultConfigData();  
+    StoreConfigData(); 
+  } 
+  PresetSelect(g_Config.PresetLastSelected);  // before timer TC3 IRQ enable!
+
+  // Set wave-table sampling interval for audio ISR - Timer/Counter #3
+  fast_samd21_tc3_configure((float) 1000000 / SAMPLE_RATE_HZ);  // period = 31.25us
+  fast_samd21_tc3_start();
   
-  // If button inputs are tied to GND, assume display not connected
-  if (digitalRead(BUTTON_A_PIN) == LOW && digitalRead(BUTTON_B_PIN) == LOW)
-    g_DisplayEnabled = FALSE;
-  else  // assume display is present and operational
+  if (SH1106_Init())  // True if OLED controller responding on IIC bus
   {
     g_DisplayEnabled = TRUE;
-    SH1106_Init();             // initialize OLED controller
     while (millis() < 100) ;   // delay for OLED init
     SH1106_Test_Pattern();     // test OLED display
     while (millis() < 600) ;   // delay to view test pattern
@@ -83,15 +92,16 @@ void  setup()
     SH1106_SetContrast(30);
     GoToNextScreen(0);         // 0 => STARTUP
   }
-
-  startPeriod_1sec = millis();
-  last_millis = millis();
 }
 
 // Main background process loop...
 //
 void  loop() 
 {
+  static uint32_t startPeriod_5ms;
+  static uint32_t startPeriod_50ms;
+  static uint32_t last_millis;
+
   MidiInputService();
   CVinputService();
 
@@ -112,16 +122,6 @@ void  loop()
       startPeriod_50ms = millis();
       if (g_DisplayEnabled)  UserInterfaceTask();
   }
-    
-  if ((millis() - startPeriod_1sec) >= 1000)  // 1 second period
-  {
-    startPeriod_1sec = millis();  // capture LED period start time
-    //
-    // *** todo:  Heartbeat LED .. 1Hz at 100ms duty (? TBC)  ***
-    // Adafruit M0 Express:  Use RGB LED DotStar (blue, low brightness!)
-    // RobotDyn M0 Mini:  Use on-board TX or RX LED  (* No LED on D13 *)
-    //
-  }
 }
 
 
@@ -138,6 +138,7 @@ void  PresetSelect(uint8 preset)
     memcpy(&g_Patch, &g_PresetPatch[preset], sizeof(PatchParamTable_t));
     SynthPrepare();
     g_Config.PresetLastSelected = preset;
+    StoreConfigData();
   }
 
   // Override conflicting config param(s)
@@ -171,7 +172,7 @@ void  MidiInputService()
   static  short  msgByteCount;
   static  short  msgIndex;
   static  uint8  msgStatus;     // last command/status byte rx'd
-  static  bool   msgComplete;   // flag: got msg status & data se
+  static  bool   msgComplete;   // flag: got msg status & data set
   
   uint8   msgByte;
   uint8   msgChannel;  // 1..16 !
@@ -225,9 +226,10 @@ void  MidiInputService()
       msgChannel = (midiMessage[0] & 0x0F) + 1;  // 1..16
       
       if (msgChannel == g_MidiChannel || msgChannel == 16
-      ||  g_MidiMode == OMNI_ON_MONO || msgStatus == SYS_EXCLUSIVE_MSG)
+      ||  g_MidiMode == OMNI_ON_MONO  || msgStatus == SYS_EXCLUSIVE_MSG)
       {
         ProcessMidiMessage(midiMessage, msgByteCount); 
+        g_MidiRxSignal = TRUE;  // signal to GUI to flash MIDI Rx icon
         msgBytesExpected = 0;
         msgByteCount = 0;
         msgIndex = 0;
@@ -268,7 +270,7 @@ void  ProcessMidiMessage(uint8 *midiMessage, short msgLength)
     }
     case PROGRAM_CHANGE_CMD:
     {
-      PresetSelect(program);  // ignored if program N/A
+      PresetSelect(program);  // ignored if program # undefined
       break;
     }
     case PITCH_BEND_CMD:
@@ -322,32 +324,32 @@ void  ProcessControlChange(uint8 *midiMessage)
   else if (CCnumber == 38)  // Set Master Tune param. (= Data Entry LSB)
   {
     g_Config.MasterTuneOffset = dataByte - 64;  // Offset by 64
-    // *** todo:  store config param's in EEPROM ***
+    StoreConfigData();
   }
   else if (CCnumber == 85)  // Set pitch CV base note
   {
     if (dataByte >= 12 && dataByte < 60)  g_Config.Pitch_CV_BaseNote = dataByte;
-    // *** todo:  store config param's in EEPROM ***
+    StoreConfigData();
   }
   else if (CCnumber == 86)  // Set audio ampld control mode
   {
     if (dataByte < 4)  g_Config.AudioAmpldCtrlMode = dataByte;
-    // *** todo:  store config param's in EEPROM ***
+    StoreConfigData();
   }
   else if (CCnumber == 87)  // Set vibrato control mode
   {
     if (dataByte < 4)  g_Config.VibratoCtrlMode = dataByte;
-    // *** todo:  store config param's in EEPROM ***
+    StoreConfigData();
   }
   else if (CCnumber == 88)  // Set pitch-bend control mode
   {
     if (dataByte < 4)  g_Config.PitchBendMode = dataByte;
-    // *** todo:  store config param's in EEPROM ***
+    StoreConfigData();
   }
   else if (CCnumber == 89)  // Set reverb mix level
   {
     if (dataByte <= 100)  g_Config.ReverbMix_pc = dataByte;
-    // *** todo:  store config param's in EEPROM ***
+    StoreConfigData();
   }
   // The following CC numbers are to set synth Patch parameters:
   // ````````````````````````````````````````````````````````````````````````
@@ -381,7 +383,7 @@ void  ProcessControlChange(uint8 *midiMessage)
   }
   else if (CCnumber == 77)  // Set LFO frequency (data = Hz, max 50)
   {
-    if (dataByte != 0 && dataByte <= 50)  g_Patch.LFO_Freq_x10 = (uint16) dataByte * 10; 
+    if (dataByte != 0 && dataByte <= 50)  g_Patch.LFO_Freq_x10 = (uint16) dataByte * 10;
   }
   else if (CCnumber == 78)  // Set LFO ramp time (unit = 100ms)
   {
@@ -451,28 +453,42 @@ int  MIDI_GetMessageLength(uint8 statusByte)
  */
 void  CVinputService()
 {
+  static uint32 gateTransitionTime;
   static uint8 callCount;
-  static uint8 GATE_state;     // GATE input state when last read (1 = asserted)
+  static bool attackPending;   // While true, waiting 5ms before trigger attack
   static int CV1readingFilt;   // CV1 reading smoothed (filtered) [16:16 bit fixed-pt]
   static int CV2readingPrev;   // CV2 reading on previous scan (mV)
   static int CV3readingPrev;   // CV3 reading on previous scan (mV)
   static int CV4readingPrev;   // CV4 reading on previous scan (mV)
+
+  uint8  gateInput = (digitalRead(GATE_INPUT) == LOW) ? 1 : 0;  // active LOW pin
   int  inputSignal_mV, noteNumber, freqLUTindex = 0;  
   int  dataValue14b, FM_depth_cents;
   int  CV1Bound, deltaCV1;     // mV
   float  freqBound, freqStep, deltaFreq;  // Hz
 
-  if (GATE_state == 0 && digitalRead(GATE_INPUT) == LOW)  // GATE rising edge
-    { g_CVcontrolMode = TRUE;  SynthTriggerAttack();  GATE_state = 1; }
-  if (GATE_state == 1 && digitalRead(GATE_INPUT) == HIGH)  // GATE falling edge 
-    { SynthTriggerRelease();  GATE_state = 0; }
+  if (g_GateState == LOW && gateInput == HIGH)  // GATE rising edge
+  { 
+    g_GateState = HIGH;
+    g_CVcontrolMode = TRUE;
+    attackPending = TRUE;
+    gateTransitionTime = millis();
+  }
+  if ((millis() - gateTransitionTime) >= 5 && attackPending)  // Gate delayed 5ms
+  {
+    SynthTriggerAttack();
+    attackPending = FALSE;  // to prevent multiple attacks
+  }
+  if (g_GateState == HIGH && gateInput == LOW)  // GATE falling edge 
+  { 
+    g_GateState = LOW;
+    SynthTriggerRelease();
+  }
 
   if (!g_CVcontrolMode)  return;  // MIDI control mode is active... bail!
 
   if ((callCount & 1) == 0)  // on every alternate call...
   {
-    digitalWrite(TESTPOINT2, HIGH);  // Measure execution time of CV1 service (*TEMP*)
-    //
     inputSignal_mV = ((int) analogRead(A1) * g_Config.CV1_FullScale_mV) / 4095;
     CV1readingFilt -= CV1readingFilt >> 3;   // Apply 1st-order IIR filter, K = 1/8
     CV1readingFilt += inputSignal_mV << 13;  // input signal converted to fixed-pt * K
@@ -496,7 +512,7 @@ void  CVinputService()
       SynthSetOscFrequency(freqBound + deltaFreq);  // interpolated frequency
     }
     //
-    digitalWrite(TESTPOINT2, LOW); 
+    
   }
 
   if (callCount == 1)
@@ -550,15 +566,128 @@ void  DefaultConfigData(void)
   g_Config.AudioAmpldCtrlMode = AUDIO_CTRL_ENV1_VELO;
   g_Config.VibratoCtrlMode = VIBRATO_DISABLED;
   g_Config.PitchBendMode = PITCH_BEND_BY_MIDI_MSG;
-  g_Config.PitchBendRange = 2;        // semitones (max. 12)
-  g_Config.ReverbMix_pc = 15;         // 0..100 % (typ. 15)
-  g_Config.PresetLastSelected = 1;    // user preference
-  g_Config.Pitch_CV_BaseNote = 36;    // MIDI note # (12..59)
-  g_Config.Pitch_CV_Quantize = 0;     // 0:Off, 1:On
-  g_Config.CV1_FullScale_mV = 5100;   // 5100 => uncalibrated
-  g_Config.MasterTuneOffset = 0;      // cents (-100 ~ +100)
-  ////
-  g_Config.eepromCheckWord = 0xABCDEF00;
+  g_Config.PitchBendRange = 2;         // semitones (max. 12)
+  g_Config.ReverbMix_pc = 15;          // 0..100 % (typ. 15)
+  g_Config.PresetLastSelected = 1;     // user preference
+  g_Config.Pitch_CV_BaseNote = 36;     // MIDI note # (12..59)
+  g_Config.Pitch_CV_Quantize = FALSE;
+  g_Config.CV3_is_Velocity = FALSE; 
+  g_Config.CV1_FullScale_mV = 5100;    // 5100 => uncalibrated
+  g_Config.MasterTuneOffset = 0;       // cents (-100 ~ +100)
+  g_Config.EEpromCheckWord = 0xABCDEF00;  // last entry
+}
+
+void  StoreConfigData()
+{
+  uint8  promAddr = 0;
+  short  bytesToCopy = (short) sizeof(g_Config);
+  uint8  *pData = (uint8 *) &g_Config;
+  int    errorCode;
+
+  while (bytesToCopy > 0)
+  {
+    errorCode = EEpromWriteData(pData, 0, promAddr, (bytesToCopy >= 16) ? 16 : bytesToCopy);
+    if (errorCode != 0)  break;
+    promAddr += 16;  pData += 16;  bytesToCopy -= 16;
+  }
+}
+
+uint8  FetchConfigData()
+{
+  uint8  promAddr = 0;
+  short  bytesToCopy = (short) sizeof(g_Config);
+  uint8  *pData = (uint8 *) &g_Config;
+  uint8  count = 0;
+
+  while (bytesToCopy > 0)
+  {
+    count += EEpromReadData(pData, 0, promAddr, (bytesToCopy >= 16) ? 16 : bytesToCopy);
+    if (count == 0)  break;
+    promAddr += 16;  pData += 16;  bytesToCopy -= 16;
+  }
+  return  count;  // number of bytes read;  0 if an error occurred
+}
+
+
+//=================  24LC08(B) IIC EEPROM Low-level driver functions  ===================
+/*
+ * Function:    EEpromACKresponse() -- Checks if an EEPROM responds on the IIC bus
+ *
+ * Returns:     TRUE if the device responds with ACK to a control byte
+ */
+bool  EEpromACKresponse(void)
+{
+  Wire.beginTransmission(0x50);  // Send control byte
+  return  (Wire.endTransmission() == 0);  // ACK rec'd
+}
+
+/*
+ * Function:    EEpromWriteData() -- Writes up to 16 bytes on a 16-byte boundary
+ *
+ * Entry arg's: pData = pointer to source data (byte array)
+ *              promBlock = EEPROM block select (0, 1, 2, 3)
+ *              promAddr = EEPROM beginning address in block for writing (0..255)
+ *              nbytes = number of bytes to write (max = 16, not checked!)
+ *
+ * Notes:   1.  Maximum number of bytes written (16) is imposed by 24LC08 page size.
+ *          2.  All bytes written must be in the same 16-byte page.
+ *          3.  Arduino IIC 'Wire' library uses a 32-byte read/write buffer.
+ *
+ * Returns:     Error code, non-zero if I2C bus error detected, else 0 if write OK
+ */
+int  EEpromWriteData(uint8_t *pData, uint8_t promBlock, uint8_t promAddr, int nbytes)
+{
+  uint16  npolls = 1000;  // time-out = 25ms @ 400kHz SCK
+  int   errcode = 0;
+
+  EEPROM_WRITE_ENABLE();   // Set WP Low
+
+  if (EEpromACKresponse())
+  {
+    Wire.beginTransmission(0x50 | (promBlock << 1));  // Control byte
+    Wire.write(promAddr);
+    Wire.write(pData, nbytes);
+    errcode = Wire.endTransmission();
+
+    while (npolls--)  // ACK polling -- exit when ACK rec'd
+      { if (EEpromACKresponse()) break; }
+    if (npolls == 0)  errcode += 10;
+    else  EEpromACKresponse();  // Send "dummy" command
+  }
+
+  EEPROM_WRITE_INHIBIT();  // Set WP High (or float)
+  return errcode;
+}
+
+/**
+ * Function:    EEpromReadData() -- Reads up to 256 bytes sequentially from the EEPROM.
+ *
+ * Entry arg's: pData = pointer to destination (byte array)
+ *              promBlock = EEPROM block select (0, 1, 2, 3)
+ *              promAddr = EEPROM beginning address in block for reading (0..255)
+ *              nbytes = number of bytes to read (max. 32, not checked) - see notes
+ *
+ * Notes:   1.  All bytes to be read must be in the same 256-byte block.
+ *          2.  Arduino IIC 'Wire' library uses a 32-byte read/write buffer.
+ *
+ * Returns:     Number of bytes received from EEPROM;  = 0 if I2C bus error
+ */
+int  EEpromReadData(uint8_t *pData, uint8_t promBlock, uint8_t promAddr, int nbytes)
+{
+  int  bcount = 0;
+
+  if (EEpromACKresponse()) 
+  {
+    Wire.beginTransmission(0x50 | (promBlock << 1));  // Control byte
+    Wire.write(promAddr);
+    delayMicroseconds(10);  // why? - see datasheet
+    if (Wire.endTransmission() != 0)  return 0;  // an error occurred - bail
+
+    Wire.requestFrom(0x50, nbytes);
+    while (bcount < nbytes)  { *pData++ = Wire.read();  bcount++; }
+  }
+          
+  return  bcount;
 }
 
 
@@ -939,7 +1068,7 @@ const  PatchParamTable_t  g_PresetPatch[] =
     10, 0,                          // Mixer Gain x10, Limit %FS
   },
   //
-  // To do:  Add 3 more presets (total = 32) .............
+  // *** Todo:  Add 3 more presets (total = 32) .............
   //
 };
 

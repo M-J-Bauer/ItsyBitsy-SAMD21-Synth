@@ -191,6 +191,15 @@ void  SynthTriggerAttack()
 }
 
 
+void  SynthTriggerRelease()
+{
+  m_TriggerRelease1 = 1;
+  m_TriggerRelease2 = 1;
+  m_TriggerReset = 1;
+  m_NoteOn = FALSE;
+}
+
+
 /*
  * Function:     Set the pitch of a note to be initiated, or change pitch of the note
  *               in progress, without affecting the amplitude envelopes (i.e. no re-attack).
@@ -266,15 +275,6 @@ void  SynthNoteOff(uint8 noteNum)
     if (noteNum > 120)  noteNum -= 12;   // too high
     if (noteNum < 12)   noteNum += 12;   // too low
     if (noteNum == m_NotePlaying) SynthTriggerRelease();
-}
-
-
-void  SynthTriggerRelease()
-{
-  m_TriggerRelease1 = 1;
-  m_TriggerRelease2 = 1;
-  m_TriggerReset = 1;
-  m_NoteOn = FALSE;
 }
 
 
@@ -674,6 +674,8 @@ void   AudioLevelController()
     } 
     else if (controlSource == AMPLD_CTRL_ENV1_VELO)  // mode 2
     {
+        if (g_CVcontrolMode && g_Config.CV3_is_Velocity)
+          m_KeyVelocity = m_ExpressionLevel;  // CV3 (EXPRN) input controls ampld
         outputAmpld = MultiplyFixed(m_ENV1_Output, m_KeyVelocity);
     }
     else if (controlSource == AMPLD_CTRL_EXPRESS)  // mode 3

@@ -86,7 +86,7 @@ void  DrawBox(short w, short h);
 // Controller low-level functions (defined in driver module):
 void  SH1106_WriteCommand(uint8_t cmd);
 void  SH1106_WriteData(uint8_t data);
-void  SH1106_Init();
+bool  SH1106_Init();  // returns TRUE if SH1106 responds
 void  SH1106_SetContrast(uint8_t level_pc);  // %
 void  SH1106_ClearGDRAM();
 void  SH1106_WriteBlock(uint16_t *scnBuf, uint16_t x, uint16_t y, uint16_t w, uint16_t h);

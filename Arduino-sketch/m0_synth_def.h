@@ -1,16 +1,19 @@
 /**
  *   File:    m0_synth_def.h 
  *
- *   Data declarations for SAMD21 'ItsyBitsy M0' sound synthesizer.
+ *   Data definitions & declarations for SAMD21 'ItsyBitsy M0' sound synthesizer.
  */
 #ifndef M0_SYNTH_DEF_H
 #define M0_SYNTH_DEF_H
 
 #include "common_def.h"
 
-#define FIRMWARE_VERSION        "1.6" 
+#define FIRMWARE_VERSION  "1.9"
 
-#define USE_SAMD21_M0_MINI_MCU  FALSE    // Set TRUE to use Robotdyn SAMD21 M0-MINI board
+#define USE_SAMD21_M0_MINI_MCU    FALSE    // Set TRUE to use Robotdyn SAMD21 M0-MINI board
+
+#define HOME_SCREEN_SYNTH_DESCR  "Voice Module"  // Text shown on Home screen
+//#define HOME_SCREEN_SYNTH_DESCR  "ItsyBitsy Synth"  // Text shown on Home screen (alt)
 
 //=======================================================================================
 
@@ -132,10 +135,10 @@ typedef struct table_of_configuration_params
   uint8   PresetLastSelected;       // Preset Last Selected (0..99)
   uint8   Pitch_CV_BaseNote;        // Lowest note in Pitch CV range (MIDI #)
   bool    Pitch_CV_Quantize;        // Quantize CV pitch to nearest semitone
+  bool    CV3_is_Velocity;          // CV3 input controls Velocity (with ENV1)
   short   CV1_FullScale_mV;         // CV1 input calibration constant (mV)
   short   MasterTuneOffset;         // Pitch fine-tuning (+/-100 cents)
-  //
-  uint32  eepromCheckWord;          // Data integrity check (*last entry*)
+  uint32  EEpromCheckWord;          // Data integrity check (*last entry*)
 
 } ConfigParams_t;
 
@@ -185,8 +188,12 @@ extern  const   uint16  g_MixerInputLevel[];
 
 extern  uint8  g_MidiChannel;        // 1..16  (16 = broadcast, omni)
 extern  uint8  g_MidiMode;           // OMNI_ON_MONO or OMNI_OFF_MONO
+extern  uint8  g_GateState;          // GATE signal state (software)
 extern  bool   g_DisplayEnabled;     // True if OLED is enabled
 extern  bool   g_CVcontrolMode;      // True if CV pitch control enabled
+extern  bool   g_MidiRxSignal;       // Signal MIDI message received
+extern  bool   g_EEpromFaulty;       // True if EEPROM error or not fitted
+extern  int    g_DebugData; 
 
 extern  const  float  g_NoteFrequency[];
 
@@ -201,6 +208,8 @@ void   ProcessMidiSystemExclusive(uint8 *midiMessage, short msgLength);
 int    MIDI_GetMessageLength(uint8 statusByte);
 void   CVinputService();
 void   DefaultConfigData(void);
+uint8  FetchConfigData(void);
+void   StoreConfigData(void);
 
 // Functions defined in "m0_synth_engine.c" ...
 //

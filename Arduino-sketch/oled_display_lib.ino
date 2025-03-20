@@ -1252,11 +1252,14 @@ void  SH1106_WriteData(uint8_t data)
   |  Name         :  SH1106_Init()
   |  Function     :  Initialize SH1106 controller.
   |  Input        :  --
-  |  Return       :  --
+  |  Returns      :  TRUE if SH1106 device responds wth ACK, else FALSE
   |  Note         :  SH1106 GDRAM not cleared
 */
-void  SH1106_Init(void)
+bool  SH1106_Init(void)
 {
+  Wire.beginTransmission(SH1106_I2C_ADDRESS);
+  if (Wire.endTransmission() != 0)  return FALSE;  // ACK not rec'd
+
   SH1106_WriteCommand(SH1106_DISPLAYOFF);            // 0xAE
   SH1106_WriteCommand(SH1106_SETDISPLAYCLOCKDIV);    // 0xD5
   SH1106_WriteCommand(0x80);                         // (suggested)
@@ -1285,6 +1288,7 @@ void  SH1106_Init(void)
   SH1106_WriteCommand(SH1106_DISPLAYALLON_RESUME);   // 0xA4
   SH1106_WriteCommand(SH1106_NORMALDISPLAY);         // 0xA6
   SH1106_WriteCommand(SH1106_DISPLAYON);             // 0xAF
+  return  TRUE;
 }
 
 
