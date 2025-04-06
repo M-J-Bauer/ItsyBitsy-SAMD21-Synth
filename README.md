@@ -1,7 +1,7 @@
 # ItsyBitsy M0 (SAMD21) 'Sigma-6' Sound Synthesizer
 DIY MIDI Sound Module using additive synthesis technique runs on a 32-bit MCU.
 
-![ItsyBitsy_Synth_Dev_Platform_web](https://github.com/user-attachments/assets/c7aa4c0c-5321-45ef-8a1e-6c454ede4888)
+![ItsyBitsy_synth_PCB_assy_slant](https://github.com/user-attachments/assets/ce14eb64-37f9-40d6-819f-ea7fd310a092)
 
 For details of concept, design, construction and operation, please refer to the project web page, here...  
 https://www.mjbauer.biz/Sigma6_M0_synth_weblog.htm
@@ -9,6 +9,8 @@ https://www.mjbauer.biz/Sigma6_M0_synth_weblog.htm
 This repo contains an Arduino "sketch" (program) which runs on a platform based on the Adafruit "ItsyBitsy M0 Express"
 (ATSAMD21) MCU board.  The same firmware should run on other MCU boards based on the ATSAMD21G18 MCU device, 
 e.g. Arduino Zero and the Chinese 'RobotDyn' SAMD21 M0-Mini.
+
+![SAMD21-M0-Mini-RobotDyn-AliExpress](https://github.com/user-attachments/assets/9be6e982-6ce9-4e80-9d86-f812581bc3a7)
 
 NB: One batch (maybe all) of the 'RobotDyn' SAMD21 M0-Mini board has digital pins D2 and D4 reversed. 
 (See https://github.com/BLavery/SAMD21-M0-Mini)  The schematic is wrong.
