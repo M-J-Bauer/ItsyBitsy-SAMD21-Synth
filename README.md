@@ -10,7 +10,7 @@ This repo contains an Arduino "sketch" (program) which runs on a platform based 
 (ATSAMD21) MCU board.  The same firmware should run on other MCU boards based on the ATSAMD21G18 MCU device, 
 e.g. Arduino Zero and the Chinese 'RobotDyn' SAMD21 M0-Mini.
 
-![SAMD21-M0-Mini-RobotDyn-AliExpress](https://github.com/user-attachments/assets/9be6e982-6ce9-4e80-9d86-f812581bc3a7)
+![Robotdyn_SAMD21_M0_Mini_pic](https://github.com/user-attachments/assets/bd78c449-bc02-46e2-9ee0-2412878ac6a5)
 
 NB: One batch (maybe all) of the 'RobotDyn' SAMD21 M0-Mini board has digital pins D2 and D4 reversed. 
 (See https://github.com/BLavery/SAMD21-M0-Mini)  The schematic is wrong.
