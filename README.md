@@ -1,7 +1,7 @@
 # ItsyBitsy M0 (SAMD21) 'Sigma-6' Sound Synthesizer
 DIY MIDI Sound Module using additive synthesis technique runs on a 32-bit MCU.
 
-![ItsyBitsy_synth_PCB_assy_slant](https://github.com/user-attachments/assets/ce14eb64-37f9-40d6-819f-ea7fd310a092)
+![ItsyBitsy_synth_PCB_assy_web](https://github.com/user-attachments/assets/9bf93723-6282-443f-87af-81abd5dccede)
 
 For details of concept, design, construction and operation, please refer to the project web page, here...  
 https://www.mjbauer.biz/Sigma6_M0_synth_weblog.htm
