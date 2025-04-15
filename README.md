@@ -22,13 +22,14 @@ Regardless of the board type connected, Adafruit or Robotdyn, select "Adafruit I
 (Don't choose "Arduino Zero" or any other Arduino board!)
 
 To build the ItsyBitsy M0 synth firmware, you also need to install a "fast timer" library in the Arduino IDE.
-Open the Arduino Library Manager. In the box labeled 'Type', choose 'Installed' from the drop-down list. 
-Your Arduino IDE window should show this information:
+Open the Arduino Library Manager. From the 'Type' drop-down list, choose 'All'. In the 'Filter' box, write "fast_samd21_tc".
+The library should then appear in your Arduino IDE as in this screen-shot:
+
 ![Screenshot_fast_timer_library_instal](https://github.com/user-attachments/assets/d96e22b1-42b5-49f7-82b0-d8f763630378)
 
-Steps to build and "upload" the firmware:
+Steps to compile and "upload" the firmware:
 
-    > Download the Sigma-6 source files from the repository here.
+    > Download the 7 Sigma-6 source files from the repository here.
     > Create a project folder in your computer local drive named "ItsyBitsy_M0_synth".
     > Copy the downloaded source files into the project folder.
     > Double-click on the file "ItsyBitsy_M0_synth.ino" -- this should open Arduino IDE and load
