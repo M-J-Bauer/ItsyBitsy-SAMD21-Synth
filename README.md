@@ -6,15 +6,9 @@ DIY MIDI Sound Module using additive synthesis technique runs on a 32-bit MCU.
 For details of concept, design, construction and operation, please refer to the project web page, here...  
 https://www.mjbauer.biz/Sigma6_M0_synth_weblog.htm
 
-This repo contains an Arduino "sketch" (program) which runs on a platform based on the Adafruit "ItsyBitsy M0 Express"
-(ATSAMD21) MCU board.  The same firmware should run on other MCU boards based on the ATSAMD21G18 MCU device, 
-e.g. Arduino Zero and the Chinese 'RobotDyn' SAMD21 M0-Mini pictured here...
-
-![Robotdyn_SAMD21_M0_Mini_pic](https://github.com/user-attachments/assets/bd78c449-bc02-46e2-9ee0-2412878ac6a5)
-
 # Firmware  Installation
 
-Download and install the latest version of Arduino IDE and follow the instructions here:
+Download and install the latest version of Arduino IDE on your PC and follow the instructions provided by Adafruit, here:
 
 [Arduino IDE Setup](https://learn.adafruit.com/introducing-itsy-bitsy-m0/setup)
 
