@@ -12,12 +12,34 @@ e.g. Arduino Zero and the Chinese 'RobotDyn' SAMD21 M0-Mini pictured here...
 
 ![Robotdyn_SAMD21_M0_Mini_pic](https://github.com/user-attachments/assets/bd78c449-bc02-46e2-9ee0-2412878ac6a5)
 
-NB: The Robotdyn SAMD21 M0-Mini board has digital pins D2 and D4 reversed, compared with
-the Adafruit M0 Express and Arduino Zero boards. The Robotdyn M0-mini I/O pin assignments follow the Arduino M0 board,
-which is not the same as the Arduino Zero. I'm guessing the M0 design engineer made a mistake and Robotdyn copied it.
-(For all the sordid details, see https://github.com/BLavery/SAMD21-M0-Mini) 
-Anyhow, a simple work-around for this incompatibility is embodied in the Sigma-6 synth firmware.
+# Firmware  Installation
 
-Although I'm not a big fan of Arduino IDE - it doesn't support modular software design - 
-I am aware it has become the development environment of choice for the majority of hobbyists.
-Further, I must admit that Arduino facilitates quick and easy firmware development.
+Download and install the latest version of Arduino IDE and follow the instructions here:
+
+[Arduino IDE Setup](https://learn.adafruit.com/introducing-itsy-bitsy-m0/setup)
+
+Regardless of the board type connected, Adafruit or Robotdyn, select "Adafruit ItsyBitsy M0 Express".
+(Don't choose "Arduino Zero" or any other Arduino board!)
+
+To build the ItsyBitsy M0 synth firmware, you also need to install a "fast timer" library in the Arduino IDE.
+Open the Arduino Library Manager. In the box labeled 'Type', choose 'Installed' from the drop-down list. 
+Your Arduino IDE window should show this information:
+![Screenshot_fast_timer_library_instal](https://github.com/user-attachments/assets/d96e22b1-42b5-49f7-82b0-d8f763630378)
+
+Steps to build and "upload" the firmware:
+
+    > Download the Sigma-6 source files from the repository here.
+    > Create a project folder in your computer local drive named "ItsyBitsy_M0_synth".
+    > Copy the downloaded source files into the project folder.
+    > Double-click on the file "ItsyBitsy_M0_synth.ino" -- this should open Arduino IDE and load
+      all source files into the editor window. (Alternatively, open Arduino IDE first, then open the
+      source file "ItsyBitsy_M0_synth.ino".)
+    > Make any required changes to the source code to suit your preferences.*
+    > Compile the code and upload the firmware to your Sigma-6 module(s).^
+
+* If you are using the RobotDyn 'SAMD21-M0-Mini' board, edit the #define on line 13 in the header file "M0-synth-def.h".
+  (The Robo M0-Mini board is not fully I/O compatible with the Adafruit M0.)
+
+^ Sometimes it is necessary to retry an upload more than once, or to select (again) the board COM port, 
+  and/or to "double click" the MCU reset button to enter the bootloader. This is "normal" for Arduino!
+  
