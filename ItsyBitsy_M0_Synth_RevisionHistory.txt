@@ -89,18 +89,26 @@ v1.8  14-03-2025 -- WIP
 Cosmetic changes to Home screen... icons, logos, etc.
 Non-functional changes to Start-up screen (text).
 
-All Setup menu selections are available in any control mode (CV or MIDI).
+All Setup Menu selections are available in any control mode (CV or MIDI).
 
 v1.9  20-03-2025
 ````````````````
-EEPROM driver code fixed. (To be verified by JPM.)
+EEPROM driver code fixed. (Verified by JPM.)
+
+v1.9.6  23-APR-2025
+```````````````````
+Fixed bug in MIDI input routine: Data Entry (Master Tune) message must be
+preceded by Registered Param (01) message; else Data Entry msg ignored.
 
 
 ================================================================================
 
 To do (?):
 ``````````
-+ Add config param: Display Brightness (contrast). Setting saved in EEPROM.
++ Refine existing presets;  Add new presets up to #31.  Release as v2.0
+
++ Add 'User Patch':  Current preset number and active patch param's may be
+  saved in EEPROM for later recall as Preset #0. (? TBD)
 
 + Add support for Pitch Bend using CV1 input in MIDI control mode.
                   ``````````       ```          `````````````````
