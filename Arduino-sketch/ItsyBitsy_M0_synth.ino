@@ -9,7 +9,7 @@
  *
  * Licence:    Open Source (Unlicensed) -- free to copy, distribute, modify
  *
- * Version:    1.9  (See Revision History file)
+ * Version:    1.9.x  (See Revision History file)
  */
 #include <fast_samd21_tc3.h>
 #include <Wire.h>
@@ -26,6 +26,7 @@ void  TC3_Handler(void);       // Audio ISR - defined in "m0_synth_engine"
 ConfigParams_t  g_Config;      // structure holding config param's
 uint8_t  g_MidiChannel;        // 1..16  (16 = broadcast, omni)
 uint8_t  g_MidiMode;           // OMNI_ON_MONO or OMNI_OFF_MONO
+bool     g_MidiParamPending;   // Reserved Param Data Entry msg expected
 uint8_t  g_GateState;          // GATE signal state (software)
 bool     g_DisplayEnabled;     // True if OLED display enabled
 bool     g_CVcontrolMode;      // True if CV control enabled
@@ -76,12 +77,15 @@ void  setup()
     DefaultConfigData();  
     StoreConfigData(); 
   } 
-  PresetSelect(g_Config.PresetLastSelected);  // before timer TC3 IRQ enable!
+  
+  if (g_Config.PresetLastSelected >= GetNumberOfPresets())
+    PresetSelect(0);
+  else PresetSelect(g_Config.PresetLastSelected);
 
   // Set wave-table sampling interval for audio ISR - Timer/Counter #3
   fast_samd21_tc3_configure((float) 1000000 / SAMPLE_RATE_HZ);  // period = 31.25us
   fast_samd21_tc3_start();
-  
+
   if (SH1106_Init())  // True if OLED controller responding on IIC bus
   {
     g_DisplayEnabled = TRUE;
@@ -92,6 +96,7 @@ void  setup()
     SH1106_SetContrast(30);
     GoToNextScreen(0);         // 0 => STARTUP
   }
+////
 }
 
 // Main background process loop...
@@ -319,12 +324,20 @@ void  ProcessControlChange(uint8 *midiMessage)
     data14 = (((int) modulationHi) << 7) + dataByte;
     SynthModulation(data14);
   }
-  // The following CC numbers are to set synth Config parameters:
+  else if (CCnumber == 100)  // Registered Parameter Low Byte
+  {
+    if (dataByte == 1) g_MidiParamPending = TRUE;  // Reg.Param. 01 is Master Tune
+  }
+  // The following CC numbers are to set synth Config parameters:    
   // ````````````````````````````````````````````````````````````````````````
   else if (CCnumber == 38)  // Set Master Tune param. (= Data Entry LSB)
   {
-    g_Config.MasterTuneOffset = dataByte - 64;  // Offset by 64
-    StoreConfigData();
+    if (g_MidiParamPending)
+    {
+      g_Config.MasterTuneOffset = dataByte - 64;  // Offset by 64
+      StoreConfigData();
+      g_MidiParamPending = FALSE;
+    }
   }
   else if (CCnumber == 85)  // Set pitch CV base note
   {
@@ -474,17 +487,18 @@ void  CVinputService()
     attackPending = TRUE;
     gateTransitionTime = millis();
   }
-  if ((millis() - gateTransitionTime) >= 5 && attackPending)  // Gate delayed 5ms
-  {
-    SynthTriggerAttack();
-    attackPending = FALSE;  // to prevent multiple attacks
-  }
-  if (g_GateState == HIGH && gateInput == LOW)  // GATE falling edge 
+  else if (g_GateState == HIGH && gateInput == LOW)  // GATE falling edge 
   { 
     g_GateState = LOW;
     SynthTriggerRelease();
   }
 
+  if ((millis() - gateTransitionTime) >= 5 && attackPending)  // Gate delayed 5ms
+  {
+    SynthTriggerAttack();
+    attackPending = FALSE;  // to prevent multiple attacks
+  }
+  
   if (!g_CVcontrolMode)  return;  // MIDI control mode is active... bail!
 
   if ((callCount & 1) == 0)  // on every alternate call...
@@ -511,10 +525,7 @@ void  CVinputService()
       deltaFreq = freqStep * (60 * deltaCV1) / 5000;  // = freqStep * (deltaCV1 / 83.333)
       SynthSetOscFrequency(freqBound + deltaFreq);  // interpolated frequency
     }
-    //
-    
   }
-
   if (callCount == 1)
   {
     inputSignal_mV = ((int) analogRead(A2) * 5100) / 4095;
@@ -548,7 +559,6 @@ void  CVinputService()
       CV4readingPrev = inputSignal_mV;
     }
   }
-
   if (++callCount >= 6)  callCount = 0;  // repeat sequence every 6 calls
 }
 
@@ -975,7 +985,7 @@ const  PatchParamTable_t  g_PresetPatch[] =
     { 7, 3, 3, 3, 7, 7 },           // Osc Ampld Modn source (0..7)
     { 0, 0, 0, 0, 0, 0 },           // Osc Detune cents (+/-600)
     { 4, 8, 2, 10, 14, 15 },        // Osc Mixer level/step (0..16)
-    70, 50, 100, 50, 2000, 0,       // Ampld Env (A-H-D-S-R), Amp Mode
+    70, 50, 100, 50, 700, 0,        // Ampld Env (A-H-D-S-R), Amp Mode
     0, 200, 500, 100,               // Contour Env (S-D-R-H)
     3000, 50,                       // ENV2: Dec, Sus %
     30, 70, 40, 35,                 // LFO: Hz x10, Ramp, FM %, AM %

@@ -8,12 +8,12 @@
 
 #include "common_def.h"
 
-#define FIRMWARE_VERSION  "1.9"
+#define FIRMWARE_VERSION  "1.9.6"
 
-#define USE_SAMD21_M0_MINI_MCU    FALSE    // Set TRUE to use Robotdyn SAMD21 M0-MINI board
+#define USE_SAMD21_M0_MINI_MCU   FALSE   // Set TRUE to use Robotdyn M0-MINI board
 
-#define HOME_SCREEN_SYNTH_DESCR  "Voice Module"  // Text shown on Home screen
-//#define HOME_SCREEN_SYNTH_DESCR  "ItsyBitsy Synth"  // Text shown on Home screen (alt)
+#define HOME_SCREEN_SYNTH_DESCR  "SAMD21 Synth"    // Text shown on Home screen (alt.1)
+//#define HOME_SCREEN_SYNTH_DESCR  "Voice Module"    // Text shown on Home screen (alt.2)
 
 //=======================================================================================
 

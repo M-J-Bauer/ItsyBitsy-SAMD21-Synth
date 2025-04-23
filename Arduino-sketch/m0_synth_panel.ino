@@ -431,12 +431,10 @@ void UserState_StartupScreen()
     }
 
     DisplayTitleBar("Start-up");
-    Disp_PosXY(116, 1);
-    Disp_PutImage(config_icon_9x9, 9, 9);  // Config icon
-    Disp_SetFont(MONO_8_NORM);
-    Disp_PosXY(4, 16);
-    Disp_PutText("Sigma-6 M0 Synth");
     Disp_SetFont(PROP_8_NORM);
+    Disp_PosXY(4, 16);
+    if (USE_SAMD21_M0_MINI_MCU) Disp_PutText("MCU: Robotdyn M0 mini");
+    else  Disp_PutText("MCU: Adafruit M0 Exprs");
     Disp_PosXY(4, 28);
     Disp_PutText("Firmware version: ");
     Disp_SetFont(MONO_8_NORM);
