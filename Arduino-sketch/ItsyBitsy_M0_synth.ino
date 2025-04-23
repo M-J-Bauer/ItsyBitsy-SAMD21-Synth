@@ -118,14 +118,14 @@ void  loop()
   
   if ((millis() - startPeriod_5ms) >= 5)  // 5ms period ended
   {
-      startPeriod_5ms = millis();
-      if (g_DisplayEnabled)  { ButtonScan();  PotService(); }
+    startPeriod_5ms = millis();
+    if (g_DisplayEnabled)  { ButtonScan();  PotService(); }
   }
   
   if ((millis() - startPeriod_50ms) >= 50)  // 50ms period ended
   {
-      startPeriod_50ms = millis();
-      if (g_DisplayEnabled)  UserInterfaceTask();
+    startPeriod_50ms = millis();
+    if (g_DisplayEnabled)  UserInterfaceTask();
   }
 }
 
@@ -213,9 +213,9 @@ void  MidiInputService()
       {
         if (msgByteCount == 0)  // start of new data set -- running status
         {
-            msgIndex = 1;
-            msgByteCount = 1;
-            msgBytesExpected = MIDI_GetMessageLength(msgStatus);
+          msgIndex = 1;
+          msgByteCount = 1;
+          msgBytesExpected = MIDI_GetMessageLength(msgStatus);
         }
       }
       if (msgIndex < MIDI_MSG_MAX_LENGTH)
@@ -737,14 +737,14 @@ const  PatchParamTable_t  g_PresetPatch[] =
   {
     "Electric Piano #1",            // 01
     { 1, 3, 5, 7, 9, 11 },          // Osc Freq Mult index (0..11)
-	{ 0, 0, 0, 0, 0, 0 },           // Osc Ampld Modn source (0..7)
-	{ 0, 0, 0, 0, 0, 0 },           // Osc Detune cents (+/-600)
-	{ 14, 12, 8, 8, 5, 0 },         // Osc Mixer level/step (0..16)
-	10, 70, 1500, 0, 500, 2,        // Ampld Env (A-H-D-S-R), Amp Mode
-	5, 20, 1000, 95,                // Contour Env (S-D-R-H)
-	200, 16,                        // ENV2: Dec, Sus %
-	30, 500, 0, 20,                 // LFO: Hz x10, Ramp, FM %, AM %
-	33, 60,                         // Mixer Gain x10, Limit %FS
+    { 0, 0, 0, 0, 0, 0 },           // Osc Ampld Modn source (0..7)
+    { 0, 0, 0, 0, 0, 0 },           // Osc Detune cents (+/-600)
+    { 14, 12, 8, 8, 5, 0 },         // Osc Mixer level/step (0..16)
+    10, 70, 1500, 0, 500, 2,        // Ampld Env (A-H-D-S-R), Amp Mode
+    5, 20, 1000, 95,                // Contour Env (S-D-R-H)
+    200, 16,                        // ENV2: Dec, Sus %
+    30, 500, 0, 20,                 // LFO: Hz x10, Ramp, FM %, AM %
+    33, 60,                         // Mixer Gain x10, Limit %FS
   },
   {
     "Steel Tine Clavier",           // 02
@@ -1029,8 +1029,8 @@ const  PatchParamTable_t  g_PresetPatch[] =
     7, 0,                           // Mixer Gain x10, Limit %FS
   },
   {
-	  "Toy Piano",                    // 25
-	  { 1, 4, 5, 6, 7, 8 },           // Osc Freq Mult index (0..11)
+    "Toy Piano",                    // 25
+    { 1, 4, 5, 6, 7, 8 },           // Osc Freq Mult index (0..11)
     { 0, 0, 0, 0, 3, 3 },           // Osc Ampld Modn src (0..9)
     { 0, 0, -2, 3, -7, 6 },         // Osc Detune cents (+/-600)
     { 15, 13, 11, 9, 9, 8 },        // Osc Mixer levels (0..16)
@@ -1039,7 +1039,7 @@ const  PatchParamTable_t  g_PresetPatch[] =
     200, 50,                        // ENV2: Dec, Sus %
     30, 500, 30, 20,                // LFO: Hz x10, Ramp, FM %, AM %
     7, 0,                           // Mixer Gain x10, Limit %FS
-	},
+    },
   {
     "Electric Piano #2",            // 26  (delete or improve!)
     { 1, 4, 5, 6, 7, 8 },           // Osc Freq Mult index (0..11)

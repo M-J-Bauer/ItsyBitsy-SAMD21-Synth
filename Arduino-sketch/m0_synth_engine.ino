@@ -119,33 +119,33 @@ const  uint16  g_AmpldLevelLogScale_x1000[] =
  */
 void  SynthPrepare()
 {
-    static bool SPI_setupDone;
-    float   rvbDecayRatio;
+  static bool SPI_setupDone;
+  float   rvbDecayRatio;
 
-    v_SynthEnable = 0;      // Disable the synth tone-generator
+  v_SynthEnable = 0;      // Disable the synth tone-generator
 
-    if (SPI_setupDone)  SPI.endTransaction();  // already begun
-    else  // initialize SPI -- once only at power-on/reset
-    { 
-        SPI.begin();  
-        SPI.beginTransaction(SPISettings(20000000, MSBFIRST, SPI_MODE0));  
-        SPI_setupDone = TRUE; 
-    }  
-    
-    m_NoteOn = FALSE;       // No note playing
-    m_TriggerRelease1 = 1;  // Reset ENV1
-    m_TriggerRelease2 = 1;  // Reset ENV2
-    m_ExpressionLevel = 0;  // Mute audio output
-    m_KeyVelocity = (IntToFixedPt(1) * 80) / 100;  // in case CV mode selected
-    
-    // Calculate reverb effect constants...
-    m_RvbDelayLen = (int) (REVERB_LOOP_TIME_SEC * SAMPLE_RATE_HZ);  // loop time is 0.04f
-    rvbDecayRatio = (float) REVERB_LOOP_TIME_SEC / REVERB_DECAY_TIME_SEC;
-    m_RvbDecay = FloatToFixed( powf(0.001f, rvbDecayRatio) );  // = 0.83 (approx)   
-    m_RvbAtten = ((uint16)REVERB_ATTENUATION_PC << 7) / 100;  // = 0..127
-    m_RvbMix = ((uint16)g_Config.ReverbMix_pc << 7) / 100;  // = 0..127
+  if (SPI_setupDone)  SPI.endTransaction();  // already begun
+  else  // initialize SPI -- once only
+  {
+    SPI.begin();
+    SPI.beginTransaction(SPISettings(20000000, MSBFIRST, SPI_MODE0));
+    SPI_setupDone = TRUE;
+  }
 
-    v_SynthEnable = 1;      // Let 'er rip, Boris!
+  m_NoteOn = FALSE;       // No note playing
+  m_TriggerRelease1 = 1;  // Reset ENV1
+  m_TriggerRelease2 = 1;  // Reset ENV2
+  m_ExpressionLevel = 0;  // Mute audio output
+  m_KeyVelocity = (IntToFixedPt(1) * 80) / 100;  // in case CV mode selected
+
+  // Calculate reverb effect constants...
+  m_RvbDelayLen = (int) (REVERB_LOOP_TIME_SEC * SAMPLE_RATE_HZ);  // loop time is 0.04f
+  rvbDecayRatio = (float) REVERB_LOOP_TIME_SEC / REVERB_DECAY_TIME_SEC;
+  m_RvbDecay = FloatToFixed( powf(0.001f, rvbDecayRatio) );  // = 0.83 (approx)
+  m_RvbAtten = ((uint16)REVERB_ATTENUATION_PC << 7) / 100;  // = 0..127
+  m_RvbMix = ((uint16)g_Config.ReverbMix_pc << 7) / 100;  // = 0..127
+
+  v_SynthEnable = 1;      // Let 'er rip, Boris!
 }
 
 
@@ -271,10 +271,10 @@ void  SynthSetOscFrequency(float fundamental_Hz)
  */
 void  SynthNoteOff(uint8 noteNum)
 {
-    noteNum &= 0x7F;
-    if (noteNum > 120)  noteNum -= 12;   // too high
-    if (noteNum < 12)   noteNum += 12;   // too low
-    if (noteNum == m_NotePlaying) SynthTriggerRelease();
+  noteNum &= 0x7F;
+  if (noteNum > 120)  noteNum -= 12;   // too high
+  if (noteNum < 12)   noteNum += 12;   // too low
+  if (noteNum == m_NotePlaying) SynthTriggerRelease();
 }
 
 
@@ -292,16 +292,16 @@ void  SynthNoteOff(uint8 noteNum)
  */
 void   SynthExpression(unsigned data14)
 {
-    uint32  ulval;
-    fixed_t level;
-    fixed_t levelMax = (IntToFixedPt(1) * 99) / 100;  // = 0.99
+  uint32  ulval;
+  fixed_t level;
+  fixed_t levelMax = (IntToFixedPt(1) * 99) / 100;  // = 0.99
 
-    ulval = ((uint32) data14 * data14) / 16384;  // apply square law
-    ulval = ulval << 6;   // scale to 20 bits (fractional part)
-    level = (fixed_t) ulval;  // convert to fixed-point fraction
-    if (level > levelMax) level = levelMax;  // limit at 0.99
+  ulval = ((uint32) data14 * data14) / 16384;  // apply square law
+  ulval = ulval << 6;   // scale to 20 bits (fractional part)
+  level = (fixed_t) ulval;  // convert to fixed-point fraction
+  if (level > levelMax) level = levelMax;  // limit at 0.99
 
-    m_ExpressionLevel = level;
+  m_ExpressionLevel = level;
 }
 
 
@@ -316,12 +316,12 @@ void   SynthExpression(unsigned data14)
  */
 void   SynthPitchBend(int bipolarPosn)
 {
-    // Scale lever position (arg) according to 'PitchBendRange' config param.
-    // PitchBendRange may be up to 12 semitones (ie. 1 octave maximum).
-    int  posnScaled = (bipolarPosn * g_Config.PitchBendRange) / 12;  // +/-8K max.
-    
-    // Convert to 20-bit *signed* fixed-point fraction  (13 + 7 = 20 bits)
-    m_PitchBendFactor = (fixed_t) (posnScaled << 7);
+  // Scale lever position (arg) according to 'PitchBendRange' config param.
+  // PitchBendRange may be up to 12 semitones (ie. 1 octave maximum).
+  int  posnScaled = (bipolarPosn * g_Config.PitchBendRange) / 12;  // +/-8K max.
+  
+  // Convert to 20-bit *signed* fixed-point fraction  (13 + 7 = 20 bits)
+  m_PitchBendFactor = (fixed_t) (posnScaled << 7);
 }
 
 
@@ -329,7 +329,7 @@ void   SynthPitchBend(int bipolarPosn)
 //
 fixed_t  GetPitchBendFactor()
 {
-    return  m_PitchBendFactor;
+  return  m_PitchBendFactor;
 }
 
 
@@ -346,9 +346,9 @@ fixed_t  GetPitchBendFactor()
  */
 void   SynthModulation(unsigned data14)
 {
-    if (data14 < (16 * 1024))
-        m_ModulationLevel = (fixed_t) ((uint32) data14 << 6);
-    else   m_ModulationLevel = FIXED_MAX_LEVEL;
+  if (data14 < (16 * 1024))
+    m_ModulationLevel = (fixed_t) ((uint32) data14 << 6);
+  else   m_ModulationLevel = FIXED_MAX_LEVEL;
 }
 
 
@@ -368,21 +368,21 @@ void   SynthModulation(unsigned data14)
  */
 void  SynthProcess()
 {
-    static  int  count5ms;
+  static  int  count5ms;
 
-    AmpldEnvelopeGenerator();
-    TransientEnvelopeGen();
-    ContourGenerator();
-    LowFrequencyOscillator();
-    AudioLevelController();
+  AmpldEnvelopeGenerator();
+  TransientEnvelopeGen();
+  ContourGenerator();
+  LowFrequencyOscillator();
+  AudioLevelController();
 
-    if (++count5ms >= 5)
-    {
-        count5ms = 0;
-        VibratoRampGenerator();
-        OscFreqModulation();
-        OscAmpldModulation();
-    }
+  if (++count5ms >= 5)
+  {
+    count5ms = 0;
+    VibratoRampGenerator();
+    OscFreqModulation();
+    OscAmpldModulation();
+  }
 }
 
 
@@ -397,86 +397,86 @@ void  SynthProcess()
  */
 void  AmpldEnvelopeGenerator()
 {
-    static  uint8    EnvSegment;      // Envelope segment (aka "phase")
-    static  uint32   envPhaseTimer;   // Time elapsed in envelope phase (ms)
-    static  fixed_t  sustainLevel;    // Envelope sustain level, norm. (0 ~ 1.000)
-    static  fixed_t  timeConstant;    // 20% of decay or release time (ms)
-    static  fixed_t  ampldDelta;      // Step change in Env Ampld in 1ms
-    static  fixed_t  ampldMaximum;    // Peak value of Envelope Ampld
+  static  uint8    EnvSegment;      // Envelope segment (aka "phase")
+  static  uint32   envPhaseTimer;   // Time elapsed in envelope phase (ms)
+  static  fixed_t  sustainLevel;    // Envelope sustain level, norm. (0 ~ 1.000)
+  static  fixed_t  timeConstant;    // 20% of decay or release time (ms)
+  static  fixed_t  ampldDelta;      // Step change in Env Ampld in 1ms
+  static  fixed_t  ampldMaximum;    // Peak value of Envelope Ampld
 
-    if (m_TriggerAttack1)
-    {
-        m_TriggerAttack1 = 0;
-        m_TriggerRelease1 = 0;
-        envPhaseTimer = 0;
-        sustainLevel = IntToFixedPt((int) g_Patch.EnvSustainLevel) / 100;
-        ampldMaximum = FIXED_MAX_LEVEL;  // for Peak-Hold phase
-        if (g_Patch.EnvHoldTime == 0)  ampldMaximum = sustainLevel;  // No Peak-Hold phase
-        ampldDelta = ampldMaximum / g_Patch.EnvAttackTime;  // step change in 1ms
-        EnvSegment = ENV_ATTACK;
-    }
+  if (m_TriggerAttack1)
+  {
+    m_TriggerAttack1 = 0;
+    m_TriggerRelease1 = 0;
+    envPhaseTimer = 0;
+    sustainLevel = IntToFixedPt((int) g_Patch.EnvSustainLevel) / 100;
+    ampldMaximum = FIXED_MAX_LEVEL;  // for Peak-Hold phase
+    if (g_Patch.EnvHoldTime == 0)  ampldMaximum = sustainLevel;  // No Peak-Hold phase
+    ampldDelta = ampldMaximum / g_Patch.EnvAttackTime;  // step change in 1ms
+    EnvSegment = ENV_ATTACK;
+  }
 
-    if (m_TriggerRelease1)
-    {
-        m_TriggerRelease1 = 0;
-        timeConstant = g_Patch.EnvReleaseTime / 5;
-        envPhaseTimer = 0;
-        EnvSegment = ENV_RELEASE;
-    }
+  if (m_TriggerRelease1)
+  {
+    m_TriggerRelease1 = 0;
+    timeConstant = g_Patch.EnvReleaseTime / 5;
+    envPhaseTimer = 0;
+    EnvSegment = ENV_RELEASE;
+  }
 
-    switch (EnvSegment)
+  switch (EnvSegment)
+  {
+  case ENV_IDLE:          // Idle - zero output level
+  {
+    m_ENV1_Output = 0;
+    break;
+  }
+  case ENV_ATTACK:        // Attack - linear ramp up to peak, or to the sustain level
+  {
+    if (m_ENV1_Output < ampldMaximum) m_ENV1_Output += ampldDelta;
+    if (++envPhaseTimer >= g_Patch.EnvAttackTime)  // attack time ended
     {
-    case ENV_IDLE:          // Idle - zero output level
-    {
-        m_ENV1_Output = 0;
-        break;
+      m_ENV1_Output = ampldMaximum;
+      envPhaseTimer = 0;
+      if (g_Patch.EnvHoldTime == 0)  EnvSegment = ENV_SUSTAIN; // skip peak and decay
+      else  EnvSegment = ENV_PEAK_HOLD;  // run all phases
     }
-    case ENV_ATTACK:        // Attack - linear ramp up to peak, or to the sustain level
+    break;
+  }
+  case ENV_PEAK_HOLD:     // Peak Hold - constant output level (0.99999)
+  {
+    if (++envPhaseTimer >= g_Patch.EnvHoldTime)  // Peak-hold time ended
     {
-        if (m_ENV1_Output < ampldMaximum) m_ENV1_Output += ampldDelta;
-        if (++envPhaseTimer >= g_Patch.EnvAttackTime)  // attack time ended
-        {
-            m_ENV1_Output = ampldMaximum;
-            envPhaseTimer = 0;
-            if (g_Patch.EnvHoldTime == 0)  EnvSegment = ENV_SUSTAIN; // skip peak and decay
-            else  EnvSegment = ENV_PEAK_HOLD;  // run all phases
-        }
-        break;
+      timeConstant = g_Patch.EnvDecayTime / 5;  // for Decay phase
+      envPhaseTimer = 0;
+      EnvSegment = ENV_DECAY;
     }
-    case ENV_PEAK_HOLD:     // Peak Hold - constant output level (0.99999)
-    {
-        if (++envPhaseTimer >= g_Patch.EnvHoldTime)  // Peak-hold time ended
-        {
-            timeConstant = g_Patch.EnvDecayTime / 5;  // for Decay phase
-            envPhaseTimer = 0;
-            EnvSegment = ENV_DECAY;
-        }
-        break;
-    }
-    case ENV_DECAY:         // Decay - exponential ramp down to sustain level
-    {
-        ampldDelta = (m_ENV1_Output - sustainLevel) / timeConstant;  // step in 1ms
-        if (ampldDelta == 0)  ampldDelta = FIXED_MIN_LEVEL;
-        if (m_ENV1_Output >= (sustainLevel + ampldDelta))  m_ENV1_Output -= ampldDelta;
-        // Allow 10 x time-constant for decay phase to complete
-        if (++envPhaseTimer >= (g_Patch.EnvDecayTime * 2))  EnvSegment = ENV_SUSTAIN;
-        break;
-    }
-    case ENV_SUSTAIN:       // Sustain constant level -- waiting for m_TriggerRelease1
-    {
-        break;
-    }
-    case ENV_RELEASE:       // Release - exponential ramp down to zero level
-    {
-        // timeConstant and envPhaseTimer are set by the trigger condition, above.
-        ampldDelta = m_ENV1_Output / timeConstant;
-        if (ampldDelta == 0)  ampldDelta = FIXED_MIN_LEVEL;
-        if (m_ENV1_Output >= ampldDelta)  m_ENV1_Output -= ampldDelta;
-        // Allow 10 x time-constant for release phase to complete
-        if (++envPhaseTimer >= (g_Patch.EnvReleaseTime * 2))  EnvSegment = ENV_IDLE;
-        break;
-    }
-    }  // end switch
+    break;
+  }
+  case ENV_DECAY:         // Decay - exponential ramp down to sustain level
+  {
+    ampldDelta = (m_ENV1_Output - sustainLevel) / timeConstant;  // step in 1ms
+    if (ampldDelta == 0)  ampldDelta = FIXED_MIN_LEVEL;
+    if (m_ENV1_Output >= (sustainLevel + ampldDelta))  m_ENV1_Output -= ampldDelta;
+    // Allow 10 x time-constant for decay phase to complete
+    if (++envPhaseTimer >= (g_Patch.EnvDecayTime * 2))  EnvSegment = ENV_SUSTAIN;
+    break;
+  }
+  case ENV_SUSTAIN:       // Sustain constant level -- waiting for m_TriggerRelease1
+  {
+    break;
+  }
+  case ENV_RELEASE:       // Release - exponential ramp down to zero level
+  {
+    // timeConstant and envPhaseTimer are set by the trigger condition, above.
+    ampldDelta = m_ENV1_Output / timeConstant;
+    if (ampldDelta == 0)  ampldDelta = FIXED_MIN_LEVEL;
+    if (m_ENV1_Output >= ampldDelta)  m_ENV1_Output -= ampldDelta;
+    // Allow 10 x time-constant for release phase to complete
+    if (++envPhaseTimer >= (g_Patch.EnvReleaseTime * 2))  EnvSegment = ENV_IDLE;
+    break;
+  }
+  }  // end switch
 }
 
 
@@ -492,84 +492,84 @@ void  AmpldEnvelopeGenerator()
  */
 void   TransientEnvelopeGen()
 {
-    static  uint8    EnvSegment;      // Envelope segment (aka "phase")
-    static  uint32   envPhaseTimer;   // Time elapsed in envelope phase (ms)
-    static  fixed_t  sustainLevel;    // Envelope sustain level (0 ~ 1.000)
-    static  fixed_t  timeConstant;    // 20% of decay or release time (ms)
-    static  fixed_t  ampldDelta;      // Step change in Env Ampld in 1ms
-    static  fixed_t  ampldMaximum;    // Peak value of Envelope Ampld
+  static  uint8    EnvSegment;      // Envelope segment (aka "phase")
+  static  uint32   envPhaseTimer;   // Time elapsed in envelope phase (ms)
+  static  fixed_t  sustainLevel;    // Envelope sustain level (0 ~ 1.000)
+  static  fixed_t  timeConstant;    // 20% of decay or release time (ms)
+  static  fixed_t  ampldDelta;      // Step change in Env Ampld in 1ms
+  static  fixed_t  ampldMaximum;    // Peak value of Envelope Ampld
 
-    if (m_TriggerAttack2)
-    {
-        m_TriggerAttack2 = 0;
-        m_TriggerRelease2 = 0;
-        envPhaseTimer = 0;
-        sustainLevel = IntToFixedPt((int) g_Patch.Env2SustainLevel) / 100; 
-        ampldMaximum = FIXED_MAX_LEVEL;  // for Peak-Hold phase
-        ampldDelta = ampldMaximum / 10;  // ENV2 attack time = 10ms (fixed)
-        EnvSegment = ENV_ATTACK;
-    }
+  if (m_TriggerAttack2)
+  {
+    m_TriggerAttack2 = 0;
+    m_TriggerRelease2 = 0;
+    envPhaseTimer = 0;
+    sustainLevel = IntToFixedPt((int) g_Patch.Env2SustainLevel) / 100; 
+    ampldMaximum = FIXED_MAX_LEVEL;  // for Peak-Hold phase
+    ampldDelta = ampldMaximum / 10;  // ENV2 attack time = 10ms (fixed)
+    EnvSegment = ENV_ATTACK;
+  }
 
-    if (m_TriggerRelease2)
-    {
-        m_TriggerRelease2 = 0;
-        timeConstant = g_Patch.Env2DecayTime / 5;  // Release time == Decay time
-        envPhaseTimer = 0;
-        EnvSegment = ENV_RELEASE;
-    }
+  if (m_TriggerRelease2)
+  {
+    m_TriggerRelease2 = 0;
+    timeConstant = g_Patch.Env2DecayTime / 5;  // Release time == Decay time
+    envPhaseTimer = 0;
+    EnvSegment = ENV_RELEASE;
+  }
 
-    switch (EnvSegment)
+  switch (EnvSegment)
+  {
+  case ENV_IDLE:          // Idle - zero output level
+  {
+    m_ENV2_Output = 0;
+    break;
+  }
+  case ENV_ATTACK:        // Attack - linear ramp up to peak
+  {
+    if (m_ENV2_Output < ampldMaximum) m_ENV2_Output += ampldDelta;
+    if (++envPhaseTimer >= 10)  // attack time (10ms) ended
     {
-    case ENV_IDLE:          // Idle - zero output level
-    {
-        m_ENV2_Output = 0;
-        break;
+      m_ENV2_Output = ampldMaximum;
+      envPhaseTimer = 0;
+      EnvSegment = ENV_PEAK_HOLD;
     }
-    case ENV_ATTACK:        // Attack - linear ramp up to peak
+    break;
+  }
+  case ENV_PEAK_HOLD:     // Peak Hold - constant output level (0.9999)
+  {
+    if (++envPhaseTimer >= 20)  // ENV2 Peak-Hold time = 20ms (fixed)
     {
-        if (m_ENV2_Output < ampldMaximum) m_ENV2_Output += ampldDelta;
-        if (++envPhaseTimer >= 10)  // attack time (10ms) ended
-        {
-            m_ENV2_Output = ampldMaximum;
-            envPhaseTimer = 0;
-            EnvSegment = ENV_PEAK_HOLD;
-        }
-        break;
+      timeConstant = g_Patch.Env2DecayTime / 5;  // for Decay phase
+      envPhaseTimer = 0;
+      EnvSegment = ENV_DECAY;
     }
-    case ENV_PEAK_HOLD:     // Peak Hold - constant output level (0.9999)
-    {
-        if (++envPhaseTimer >= 20)  // ENV2 Peak-Hold time = 20ms (fixed)
-        {
-            timeConstant = g_Patch.Env2DecayTime / 5;  // for Decay phase
-            envPhaseTimer = 0;
-            EnvSegment = ENV_DECAY;
-        }
-        break;
-    }
-    case ENV_DECAY:         // Decay - exponential ramp down to sustain level
-    {
-        ampldDelta = (m_ENV2_Output - sustainLevel) / timeConstant;  // step in 1ms
-        if (ampldDelta == 0)  ampldDelta = FIXED_MIN_LEVEL;
-        if (m_ENV2_Output >= (sustainLevel + ampldDelta))  m_ENV2_Output -= ampldDelta;
-        // Allow 10 x time-constant for decay phase to complete
-        if (++envPhaseTimer >= (g_Patch.Env2DecayTime * 2))  EnvSegment = ENV_SUSTAIN;
-        break;
-    }
-    case ENV_SUSTAIN:       // Sustain constant level -- waiting for m_TriggerRelease
-    {
-        break;
-    }
-    case ENV_RELEASE:       // Release - exponential ramp down to zero level
-    {
-        // timeConstant and envPhaseTimer are set by the trigger condition, above.
-        ampldDelta = m_ENV2_Output / timeConstant;
-        if (ampldDelta == 0)  ampldDelta = FIXED_MIN_LEVEL;
-        if (m_ENV2_Output >= ampldDelta)  m_ENV2_Output -= ampldDelta;
-        // Allow 10 x time-constant for release phase to complete
-        if (++envPhaseTimer >= (g_Patch.Env2DecayTime * 2))  EnvSegment = ENV_IDLE;
-        break;
-    }
-    }  // end switch
+    break;
+  }
+  case ENV_DECAY:         // Decay - exponential ramp down to sustain level
+  {
+    ampldDelta = (m_ENV2_Output - sustainLevel) / timeConstant;  // step in 1ms
+    if (ampldDelta == 0)  ampldDelta = FIXED_MIN_LEVEL;
+    if (m_ENV2_Output >= (sustainLevel + ampldDelta))  m_ENV2_Output -= ampldDelta;
+    // Allow 10 x time-constant for decay phase to complete
+    if (++envPhaseTimer >= (g_Patch.Env2DecayTime * 2))  EnvSegment = ENV_SUSTAIN;
+    break;
+  }
+  case ENV_SUSTAIN:       // Sustain constant level -- waiting for m_TriggerRelease
+  {
+    break;
+  }
+  case ENV_RELEASE:       // Release - exponential ramp down to zero level
+  {
+    // timeConstant and envPhaseTimer are set by the trigger condition, above.
+    ampldDelta = m_ENV2_Output / timeConstant;
+    if (ampldDelta == 0)  ampldDelta = FIXED_MIN_LEVEL;
+    if (m_ENV2_Output >= ampldDelta)  m_ENV2_Output -= ampldDelta;
+    // Allow 10 x time-constant for release phase to complete
+    if (++envPhaseTimer >= (g_Patch.Env2DecayTime * 2))  EnvSegment = ENV_IDLE;
+    break;
+  }
+  }  // end switch
 }
 
 
@@ -583,58 +583,58 @@ void   TransientEnvelopeGen()
  */
 void  ContourGenerator()
 {
-    static  short    contourSegment;  // Contour envelope segment (aka phase)
-    static  uint32   segmentTimer;    // Time elapsed in active phase (ms)
-    static  fixed_t  outputDelta;     // Step change in output level per millisecond
-    static  fixed_t  startLevel;      // Output level at start of contour (0..+1.0)
-    static  fixed_t  holdLevel;       // Output level maintained at end of ramp (0..+1.0)
+  static  short    contourSegment;  // Contour envelope segment (aka phase)
+  static  uint32   segmentTimer;    // Time elapsed in active phase (ms)
+  static  fixed_t  outputDelta;     // Step change in output level per millisecond
+  static  fixed_t  startLevel;      // Output level at start of contour (0..+1.0)
+  static  fixed_t  holdLevel;       // Output level maintained at end of ramp (0..+1.0)
 
-    if (m_TriggerContour)  // Note-On event
-    {
-        m_TriggerContour = 0;
-        startLevel = IntToFixedPt(g_Patch.ContourStartLevel) / 100;
-        holdLevel = IntToFixedPt(g_Patch.ContourHoldLevel) / 100;
-        m_ContourOutput = startLevel;
-        outputDelta = (holdLevel - startLevel) / g_Patch.ContourRampTime;
-        segmentTimer = 0;
-        contourSegment = CONTOUR_DELAY;
-    }
-    
-    if (m_TriggerReset)  // Note-Off event
-    {
-        m_TriggerReset = 0;
-        segmentTimer = 0;
-        contourSegment = CONTOUR_IDLE;
-    }
+  if (m_TriggerContour)  // Note-On event
+  {
+    m_TriggerContour = 0;
+    startLevel = IntToFixedPt(g_Patch.ContourStartLevel) / 100;
+    holdLevel = IntToFixedPt(g_Patch.ContourHoldLevel) / 100;
+    m_ContourOutput = startLevel;
+    outputDelta = (holdLevel - startLevel) / g_Patch.ContourRampTime;
+    segmentTimer = 0;
+    contourSegment = CONTOUR_DELAY;
+  }
+  
+  if (m_TriggerReset)  // Note-Off event
+  {
+    m_TriggerReset = 0;
+    segmentTimer = 0;
+    contourSegment = CONTOUR_IDLE;
+  }
 
-    switch (contourSegment)
+  switch (contourSegment)
+  {
+  case CONTOUR_IDLE:  // Waiting for trigger signal
+  {
+    break;
+  }
+  case CONTOUR_DELAY:  // Delay before ramp up/down segment
+  {
+    if (++segmentTimer >= g_Patch.ContourDelayTime)  // Delay segment ended
     {
-    case CONTOUR_IDLE:  // Waiting for trigger signal
-    {
-        break;
+      segmentTimer = 0;
+      contourSegment = CONTOUR_RAMP;
     }
-    case CONTOUR_DELAY:  // Delay before ramp up/down segment
-    {
-        if (++segmentTimer >= g_Patch.ContourDelayTime)  // Delay segment ended
-        {
-            segmentTimer = 0;
-            contourSegment = CONTOUR_RAMP;
-        }
-        break;
-    }
-    case CONTOUR_RAMP:  // Linear ramp up/down from Start to Hold level
-    {
-        if (++segmentTimer >= g_Patch.ContourRampTime)  // Ramp segment ended
-            contourSegment = CONTOUR_HOLD;
-        else  m_ContourOutput += outputDelta;
-        break;
-    }
-    case CONTOUR_HOLD:  // Hold constant level - waiting for Note-Off event to reset
-    {
-        m_ContourOutput = holdLevel;
-        break;
-    }
-    };  // end switch
+    break;
+  }
+  case CONTOUR_RAMP:  // Linear ramp up/down from Start to Hold level
+  {
+    if (++segmentTimer >= g_Patch.ContourRampTime)  // Ramp segment ended
+      contourSegment = CONTOUR_HOLD;
+    else  m_ContourOutput += outputDelta;
+    break;
+  }
+  case CONTOUR_HOLD:  // Hold constant level - waiting for Note-Off event to reset
+  {
+    m_ContourOutput = holdLevel;
+    break;
+  }
+  };  // end switch
 }
 
 
@@ -652,62 +652,62 @@ void  ContourGenerator()
  */
 void   AudioLevelController()
 {
-    static  fixed_t  outputAmpld;       // Audio output level, normalized
-    static  fixed_t  smoothExprnLevel;  // Expression level, normalized, smoothed
-    volatile  fixed_t  outputLevel;     // immune to corruption by ISR
-    fixed_t  exprnLevel;
-    uint8   controlSource = g_Patch.AmpControlMode;  // default
+  static  fixed_t  outputAmpld;       // Audio output level, normalized
+  static  fixed_t  smoothExprnLevel;  // Expression level, normalized, smoothed
+  volatile  fixed_t  outputLevel;     // immune to corruption by ISR
+  fixed_t  exprnLevel;
+  uint8   controlSource = g_Patch.AmpControlMode;  // default
+  
+  // Check for global (config) override of patch parameter 
+  if (g_Config.AudioAmpldCtrlMode == AUDIO_CTRL_CONST) 
+    controlSource = AMPLD_CTRL_CONST_MAX;
+  else if (g_Config.AudioAmpldCtrlMode == AUDIO_CTRL_ENV1_VELO) 
+    controlSource = AMPLD_CTRL_ENV1_VELO;
+  else if (g_Config.AudioAmpldCtrlMode == AUDIO_CTRL_EXPRESS) 
+    controlSource = AMPLD_CTRL_EXPRESS;
+  else  controlSource = g_Patch.AmpControlMode;
+
+  if (controlSource == AMPLD_CTRL_CONST_LOW)  // mode 1
+  {
+    if (m_NoteOn)  outputAmpld = FIXED_MAX_LEVEL / 2;
+    else  outputAmpld = 0;  // Mute when note terminated
+  } 
+  else if (controlSource == AMPLD_CTRL_ENV1_VELO)  // mode 2
+  {
+    if (g_CVcontrolMode && g_Config.CV3_is_Velocity)
+      m_KeyVelocity = m_ExpressionLevel;  // CV3 (EXPRN) input controls ampld
+    outputAmpld = MultiplyFixed(m_ENV1_Output, m_KeyVelocity);
+  }
+  else if (controlSource == AMPLD_CTRL_EXPRESS)  // mode 3
+  {
+//  if (m_ENV1_Output)  exprnLevel = m_ExpressionLevel;
+//  else  exprnLevel = 0;  // Mute when ENV1 release phase ends (option 1), or...
+    exprnLevel = m_ExpressionLevel;  // ... let MIDI controller determine the level
     
-    // Check for global (config) override of patch parameter 
-    if (g_Config.AudioAmpldCtrlMode == AUDIO_CTRL_CONST) 
-        controlSource = AMPLD_CTRL_CONST_MAX;
-    else if (g_Config.AudioAmpldCtrlMode == AUDIO_CTRL_ENV1_VELO) 
-        controlSource = AMPLD_CTRL_ENV1_VELO;
-    else if (g_Config.AudioAmpldCtrlMode == AUDIO_CTRL_EXPRESS) 
-        controlSource = AMPLD_CTRL_EXPRESS;
-    else  controlSource = g_Patch.AmpControlMode;
+    // Apply IIR smoothing filter to eliminate abrupt step changes (K = 1/16)
+    smoothExprnLevel -= smoothExprnLevel >> 4;  // divide by 16
+    smoothExprnLevel += exprnLevel >> 4;
+    outputAmpld = smoothExprnLevel;
+  }
+  else  // controlSource == AMPLD_CTRL_CONST_MAX   // mode 0
+  {
+//  if (m_NoteOn)  outputAmpld = FIXED_MAX_LEVEL;  
+//  else  outputAmpld = 0;  // Mute when note terminated (option 1), or...
+    outputAmpld = FIXED_MAX_LEVEL;  // ... sound the note indefinitely
+  }
 
-    if (controlSource == AMPLD_CTRL_CONST_LOW)  // mode 1
-    {
-        if (m_NoteOn)  outputAmpld = FIXED_MAX_LEVEL / 2;
-        else  outputAmpld = 0;  // Mute when note terminated
-    } 
-    else if (controlSource == AMPLD_CTRL_ENV1_VELO)  // mode 2
-    {
-        if (g_CVcontrolMode && g_Config.CV3_is_Velocity)
-          m_KeyVelocity = m_ExpressionLevel;  // CV3 (EXPRN) input controls ampld
-        outputAmpld = MultiplyFixed(m_ENV1_Output, m_KeyVelocity);
-    }
-    else if (controlSource == AMPLD_CTRL_EXPRESS)  // mode 3
-    {
-//      if (m_ENV1_Output)  exprnLevel = m_ExpressionLevel;
-//      else  exprnLevel = 0;  // Mute when ENV1 release phase ends (option 1), or...
-        exprnLevel = m_ExpressionLevel;  // ... let MIDI controller determine the level
-        
-        // Apply IIR smoothing filter to eliminate abrupt step changes (K = 1/16)
-        smoothExprnLevel -= smoothExprnLevel >> 4;  // divide by 16
-        smoothExprnLevel += exprnLevel >> 4;
-        outputAmpld = smoothExprnLevel;
-    }
-    else  // controlSource == AMPLD_CTRL_CONST_MAX   // mode 0
-    {
-//      if (m_NoteOn)  outputAmpld = FIXED_MAX_LEVEL;  
-//      else  outputAmpld = 0;  // Mute when note terminated (option 1), or...
-        outputAmpld = FIXED_MAX_LEVEL;  // ... sound the note indefinitely
-    }
+  if (outputAmpld > FIXED_MAX_LEVEL)  outputAmpld = FIXED_MAX_LEVEL;
 
-    if (outputAmpld > FIXED_MAX_LEVEL)  outputAmpld = FIXED_MAX_LEVEL;
-
-    outputLevel = FractionPart(outputAmpld, 10);  // unit = 1/1024, range 0..1023
-    v_OutputLevel = outputLevel;
-      
-    // Convert limiter level (%) to fixed-point normalized value for ISR
-    if (g_Patch.LimiterLevelPc != 0)   // Limiter enabled...
-        v_LimiterLevelPos = IntToFixedPt(g_Patch.LimiterLevelPc) / 100;
-    else  // Limiter disabled...
-        v_LimiterLevelPos = MAX_CLIPPING_LEVEL;  // maximum allowed level
+  outputLevel = FractionPart(outputAmpld, 10);  // unit = 1/1024, range 0..1023
+  v_OutputLevel = outputLevel;
+    
+  // Convert limiter level (%) to fixed-point normalized value for ISR
+  if (g_Patch.LimiterLevelPc != 0)   // Limiter enabled...
+    v_LimiterLevelPos = IntToFixedPt(g_Patch.LimiterLevelPc) / 100;
+  else  // Limiter disabled...
+    v_LimiterLevelPos = MAX_CLIPPING_LEVEL;  // maximum allowed level
 		
-    v_LimiterLevelNeg = 0 - v_LimiterLevelPos;
+  v_LimiterLevelNeg = 0 - v_LimiterLevelPos;
 }
 
 
@@ -726,14 +726,14 @@ void   AudioLevelController()
  */
 void   LowFrequencyOscillator()
 {
-    static  int32  oscAngleLFO;  // 24:8 bit fixed-point format
-    int  waveIdx;
+  static  int32  oscAngleLFO;  // 24:8 bit fixed-point format
+  int  waveIdx;
 
-    waveIdx = oscAngleLFO >> 8;  // integer part of oscAngleLFO
-    m_LFO_output = (fixed_t) g_sine_wave[waveIdx] << 5;  // normalized sample
-    oscAngleLFO += m_LFO_Step;
-    if (oscAngleLFO >= (WAVE_TABLE_SIZE << 8))  
-        oscAngleLFO -= (WAVE_TABLE_SIZE << 8);
+  waveIdx = oscAngleLFO >> 8;  // integer part of oscAngleLFO
+  m_LFO_output = (fixed_t) g_sine_wave[waveIdx] << 5;  // normalized sample
+  oscAngleLFO += m_LFO_Step;
+  if (oscAngleLFO >= (WAVE_TABLE_SIZE << 8))  
+    oscAngleLFO -= (WAVE_TABLE_SIZE << 8);
 }
 
 
@@ -751,60 +751,60 @@ void   LowFrequencyOscillator()
  */
 void   VibratoRampGenerator()
 {
-    static  short   rampState = 0;
-    static  uint32  rampTimer_ms;
-    static  fixed_t rampStep;  // Step chnage in output per 5 ms
+  static  short   rampState = 0;
+  static  uint32  rampTimer_ms;
+  static  fixed_t rampStep;  // Step chnage in output per 5 ms
 
-    if (g_Patch.LFO_RampTime == 0)  // ramp disabled
-    {
-      m_RampOutput = FIXED_MAX_LEVEL;
-      return;
-    }
+  if (g_Patch.LFO_RampTime == 0)  // ramp disabled
+  {
+    m_RampOutput = FIXED_MAX_LEVEL;
+    return;
+  }
 
-    // Check for Note-Off or Note-Change event while ramp is progressing
-    if (rampState != 3 && (!m_NoteOn || m_LegatoNoteChange))
-    {
-        rampStep = IntToFixedPt(5) / 100;  // ramp down in 100ms
-        rampState = 3;
-    }
+  // Check for Note-Off or Note-Change event while ramp is progressing
+  if (rampState != 3 && (!m_NoteOn || m_LegatoNoteChange))
+  {
+    rampStep = IntToFixedPt(5) / 100;  // ramp down in 100ms
+    rampState = 3;
+  }
 
-    if (rampState == 0)  // Idle - waiting for Note-On
+  if (rampState == 0)  // Idle - waiting for Note-On
+  {
+    if (m_NoteOn)
     {
-        if (m_NoteOn)
-        {
-            m_RampOutput = 0;
-            rampTimer_ms = 0;  // start ramp delay timer
-            rampState = 1;
-        }
+      m_RampOutput = 0;
+      rampTimer_ms = 0;  // start ramp delay timer
+      rampState = 1;
     }
-    else if (rampState == 1)  // Delaying before ramp-up begins
+  }
+  else if (rampState == 1)  // Delaying before ramp-up begins
+  {
+    if (rampTimer_ms >= g_Patch.LFO_RampTime)  
     {
-        if (rampTimer_ms >= g_Patch.LFO_RampTime)  
-        {
-            rampStep = IntToFixedPt(5) / (int) g_Patch.LFO_RampTime;
-            rampState = 2;
-        }
-        rampTimer_ms += 5;
+      rampStep = IntToFixedPt(5) / (int) g_Patch.LFO_RampTime;
+      rampState = 2;
     }
-    else if (rampState == 2)  // Ramping up - hold at max. level (1.00)
+    rampTimer_ms += 5;
+  }
+  else if (rampState == 2)  // Ramping up - hold at max. level (1.00)
+  {
+    if (m_RampOutput < FIXED_MAX_LEVEL)  m_RampOutput += rampStep;
+    if (m_RampOutput > FIXED_MAX_LEVEL)  m_RampOutput = FIXED_MAX_LEVEL;
+  }
+  else if (rampState == 3)  // Ramping down fast (fixed 100ms time)
+  {
+    if (m_RampOutput > 0)  m_RampOutput -= rampStep;
+    if (m_RampOutput < 0)  m_RampOutput = 0;
+    
+    if (m_RampOutput < (IntToFixedPt(1) / 100))  // output is below 0.01
     {
-        if (m_RampOutput < FIXED_MAX_LEVEL)  m_RampOutput += rampStep;
-        if (m_RampOutput > FIXED_MAX_LEVEL)  m_RampOutput = FIXED_MAX_LEVEL;
+      // If a legato note change has occurred, re-start the ramp delay
+      if (m_LegatoNoteChange)  { m_LegatoNoteChange = 0;  rampState = 1; }
+      else  rampState = 0;
+      rampTimer_ms = 0;
     }
-    else if (rampState == 3)  // Ramping down fast (fixed 100ms time)
-    {
-        if (m_RampOutput > 0)  m_RampOutput -= rampStep;
-        if (m_RampOutput < 0)  m_RampOutput = 0;
-        
-        if (m_RampOutput < (IntToFixedPt(1) / 100))  // output is below 0.01
-        {
-            // If a legato note change has occurred, re-start the ramp delay
-            if (m_LegatoNoteChange)  { m_LegatoNoteChange = 0;  rampState = 1; }
-            else  rampState = 0;
-            rampTimer_ms = 0;
-        }
-    }
-    else  rampState = 0;
+  }
+  else  rampState = 0;
 }
 
 
@@ -825,43 +825,43 @@ void   VibratoRampGenerator()
  */
 void   OscFreqModulation()
 {
-    fixed_t detuneNorm;      // osc de-tune factor (0.5 ~ 2.0 octave)
-    fixed_t LFO_scaled;      // normalized, bipolar (range 0..+/-1.0)
-    fixed_t modnLevel;       // normalized, unipolar (range 0..+1.0)
-    fixed_t freqDevn;        // deviation from median freq. (x0.5 .. x2.0)
-    int32   oscStep;         // temporary for calc'n (16:16 bit fix-pt)
-    int32   oscFreqLFO;      // 24:8 bit fixed-point format (8-bit fraction)
-    short   osc, cents;
-    
-    oscFreqLFO = (((int) g_Patch.LFO_Freq_x10) << 8) / 10;  // 24:8 bit fixed-pt
-    m_LFO_Step = (oscFreqLFO * WAVE_TABLE_SIZE) / 1000;  // LFO Fs = 1000Hz  
-    
-    if (g_Config.VibratoCtrlMode == VIBRATO_BY_MODN_CC)  // Use Mod Lever
-        modnLevel = (m_ModulationLevel * g_Config.PitchBendRange) / 12;  // 1 octave max.
-    
-    if (g_Config.VibratoCtrlMode == VIBRATO_AUTOMATIC)  // Use LFO with ramp generator
-        modnLevel = (m_RampOutput * g_Patch.LFO_FM_Depth) / 1200;
+  fixed_t detuneNorm;      // osc de-tune factor (0.5 ~ 2.0 octave)
+  fixed_t LFO_scaled;      // normalized, bipolar (range 0..+/-1.0)
+  fixed_t modnLevel;       // normalized, unipolar (range 0..+1.0)
+  fixed_t freqDevn;        // deviation from median freq. (x0.5 .. x2.0)
+  int32   oscStep;         // temporary for calc'n (16:16 bit fix-pt)
+  int32   oscFreqLFO;      // 24:8 bit fixed-point format (8-bit fraction)
+  short   osc, cents;
+  
+  oscFreqLFO = (((int) g_Patch.LFO_Freq_x10) << 8) / 10;  // 24:8 bit fixed-pt
+  m_LFO_Step = (oscFreqLFO * WAVE_TABLE_SIZE) / 1000;  // LFO Fs = 1000Hz  
+  
+  if (g_Config.VibratoCtrlMode == VIBRATO_BY_MODN_CC)  // Use Mod Lever
+    modnLevel = (m_ModulationLevel * g_Config.PitchBendRange) / 12;  // 1 octave max.
+  
+  if (g_Config.VibratoCtrlMode == VIBRATO_AUTOMATIC)  // Use LFO with ramp generator
+    modnLevel = (m_RampOutput * g_Patch.LFO_FM_Depth) / 1200;
 
-    if (g_Config.VibratoCtrlMode == VIBRATO_BY_CV_AUXIN)  // Use LFO without ramp
-        modnLevel = (IntToFixedPt(1) * g_Patch.LFO_FM_Depth) / 1200;
+  if (g_Config.VibratoCtrlMode == VIBRATO_BY_CV_AUXIN)  // Use LFO without ramp
+    modnLevel = (IntToFixedPt(1) * g_Patch.LFO_FM_Depth) / 1200;
 
-    if (g_Config.VibratoCtrlMode != 0)  // Vibrato has priority over pitch bend
-    {
-        LFO_scaled = MultiplyFixed(m_LFO_output, modnLevel); 
-        freqDevn = Base2Exp(LFO_scaled);   // range 0.5 ~ 2.0.
-    }
-    else if (g_Config.PitchBendMode != 0)  // pitch bend enabled
-        freqDevn = Base2Exp(m_PitchBendFactor);  // max. 1 octave
-    else  freqDevn = IntToFixedPt(1);  // No FM -- default
+  if (g_Config.VibratoCtrlMode != 0)  // Vibrato has priority over pitch bend
+  {
+    LFO_scaled = MultiplyFixed(m_LFO_output, modnLevel); 
+    freqDevn = Base2Exp(LFO_scaled);   // range 0.5 ~ 2.0.
+  }
+  else if (g_Config.PitchBendMode != 0)  // pitch bend enabled
+    freqDevn = Base2Exp(m_PitchBendFactor);  // max. 1 octave
+  else  freqDevn = IntToFixedPt(1);  // No FM -- default
    
-    for (osc = 0;  osc < 6;  osc++)
-    { 
-        cents = g_Patch.OscDetune[osc] + g_Config.MasterTuneOffset;  // signed
-        detuneNorm = Base2Exp((IntToFixedPt(1) * cents) / 1200);
-        m_OscStepDetune[osc] = MultiplyFixed(m_OscStepInit[osc], detuneNorm);
-        oscStep = MultiplyFixed(m_OscStepDetune[osc], freqDevn);  // Apply FM
-        v_OscStep[osc] = oscStep;  // update osc frequency
-    }
+  for (osc = 0;  osc < 6;  osc++)
+  { 
+    cents = g_Patch.OscDetune[osc] + g_Config.MasterTuneOffset;  // signed
+    detuneNorm = Base2Exp((IntToFixedPt(1) * cents) / 1200);
+    m_OscStepDetune[osc] = MultiplyFixed(m_OscStepInit[osc], detuneNorm);
+    oscStep = MultiplyFixed(m_OscStepDetune[osc], freqDevn);  // Apply FM
+    v_OscStep[osc] = oscStep;  // update osc frequency
+  }
 }
 
 
@@ -885,48 +885,48 @@ void   OscFreqModulation()
  */
 void  OscAmpldModulation()
 {
-    short  osc, step;
+  short  osc, step;
+  
+  fixed_t  LFO_scaled = (m_LFO_output * g_Patch.LFO_AM_Depth) / 200;  // FS = +/-0.5
+  fixed_t  LFO_AM_bias = IntToFixedPt(1) - IntToFixedPt(g_Patch.LFO_AM_Depth) / 200;
+  
+  for (osc = 0;  osc < 6;  osc++)
+  {
+    // Determine Ampld Modulation factor for each oscillator
+    if (g_Patch.OscAmpldModSource[osc] == OSC_MODN_SOURCE_CONT_POS)
+      v_OscAmpldModn[osc] = m_ContourOutput >> 10;  // 0..1024
+    else if (g_Patch.OscAmpldModSource[osc] == OSC_MODN_SOURCE_CONT_NEG)
+      v_OscAmpldModn[osc] = 1024 - (m_ContourOutput >> 10);  // 1024..0
+    else if (g_Patch.OscAmpldModSource[osc] == OSC_MODN_SOURCE_ENV2)
+      v_OscAmpldModn[osc] = m_ENV2_Output >> 10;  // 0..1024
+    else if (g_Patch.OscAmpldModSource[osc] == OSC_MODN_SOURCE_MODN)
+      v_OscAmpldModn[osc] = m_ModulationLevel >> 10;  // 0..1024
+    else if (g_Patch.OscAmpldModSource[osc] == OSC_MODN_SOURCE_EXPR_POS)
+      v_OscAmpldModn[osc] = m_ExpressionLevel >> 10;  // 0..1024
+    else if (g_Patch.OscAmpldModSource[osc] == OSC_MODN_SOURCE_EXPR_NEG)
+      v_OscAmpldModn[osc] = 1024 - (m_ExpressionLevel >> 10);  // 1024..0
+    else if (g_Patch.OscAmpldModSource[osc] == OSC_MODN_SOURCE_LFO)
+      v_OscAmpldModn[osc] = (LFO_scaled + LFO_AM_bias) >> 10;  // 0..1024
+    else if (g_Patch.OscAmpldModSource[osc] == OSC_MODN_SOURCE_VELO_POS)
+      v_OscAmpldModn[osc] = m_KeyVelocity >> 10;  // 0..1024
+    else if (g_Patch.OscAmpldModSource[osc] == OSC_MODN_SOURCE_VELO_NEG)
+      v_OscAmpldModn[osc] = 1024 - (m_KeyVelocity >> 10);  // 1024..0
+    else  
+      v_OscAmpldModn[osc] = 1000;  // Fixed, maximum level
     
-    fixed_t  LFO_scaled = (m_LFO_output * g_Patch.LFO_AM_Depth) / 200;  // FS = +/-0.5
-    fixed_t  LFO_AM_bias = IntToFixedPt(1) - IntToFixedPt(g_Patch.LFO_AM_Depth) / 200;
+    if (v_OscAmpldModn[osc] > 1000)  v_OscAmpldModn[osc] = 1000;  // limit to 1000
     
-    for (osc = 0;  osc < 6;  osc++)
+    // Update mixer input level for each oscillator...
+    if (m_OscMuted[osc])  v_MixerLevel[osc] = 0;  
+    else  
     {
-        // Determine Ampld Modulation factor for each oscillator
-        if (g_Patch.OscAmpldModSource[osc] == OSC_MODN_SOURCE_CONT_POS)
-            v_OscAmpldModn[osc] = m_ContourOutput >> 10;  // 0..1024
-        else if (g_Patch.OscAmpldModSource[osc] == OSC_MODN_SOURCE_CONT_NEG)
-            v_OscAmpldModn[osc] = 1024 - (m_ContourOutput >> 10);  // 1024..0
-        else if (g_Patch.OscAmpldModSource[osc] == OSC_MODN_SOURCE_ENV2)
-            v_OscAmpldModn[osc] = m_ENV2_Output >> 10;  // 0..1024
-        else if (g_Patch.OscAmpldModSource[osc] == OSC_MODN_SOURCE_MODN)
-            v_OscAmpldModn[osc] = m_ModulationLevel >> 10;  // 0..1024
-        else if (g_Patch.OscAmpldModSource[osc] == OSC_MODN_SOURCE_EXPR_POS)
-            v_OscAmpldModn[osc] = m_ExpressionLevel >> 10;  // 0..1024
-        else if (g_Patch.OscAmpldModSource[osc] == OSC_MODN_SOURCE_EXPR_NEG)
-            v_OscAmpldModn[osc] = 1024 - (m_ExpressionLevel >> 10);  // 1024..0
-        else if (g_Patch.OscAmpldModSource[osc] == OSC_MODN_SOURCE_LFO)
-            v_OscAmpldModn[osc] = (LFO_scaled + LFO_AM_bias) >> 10;  // 0..1024
-        else if (g_Patch.OscAmpldModSource[osc] == OSC_MODN_SOURCE_VELO_POS)
-            v_OscAmpldModn[osc] = m_KeyVelocity >> 10;  // 0..1024
-        else if (g_Patch.OscAmpldModSource[osc] == OSC_MODN_SOURCE_VELO_NEG)
-            v_OscAmpldModn[osc] = 1024 - (m_KeyVelocity >> 10);  // 1024..0
-        else  
-            v_OscAmpldModn[osc] = 1000;  // Fixed, maximum level
-        
-        if (v_OscAmpldModn[osc] > 1000)  v_OscAmpldModn[osc] = 1000;  // limit to 1000
-        
-        // Update mixer input level for each oscillator...
-        if (m_OscMuted[osc])  v_MixerLevel[osc] = 0;  
-        else  
-        {
-            step = g_Patch.MixerInputStep[osc];  // 0..16
-            v_MixerLevel[osc] = g_AmpldLevelLogScale_x1000[step];  // 0..1000
-        }
+      step = g_Patch.MixerInputStep[osc];  // 0..16
+      v_MixerLevel[osc] = g_AmpldLevelLogScale_x1000[step];  // 0..1000
     }
-    
-    // Set Mixer Output Gain control according to patch param.
-    v_MixerOutGain = (g_Patch.MixerOutGain_x10 << 7) / 10;  // 0..1280
+  } // end for-loop
+  
+  // Set Mixer Output Gain control according to patch param.
+  v_MixerOutGain = (g_Patch.MixerOutGain_x10 << 7) / 10;  // 0..1280
 }
 
 
@@ -945,74 +945,74 @@ void  OscAmpldModulation()
  */
 void  TC3_Handler(void)
 {
-    static   int   rvbIndex;        // index into ReverbDelayLine[]
-    static   fixed_t  reverbPrev;   // previous output from reverb delay line
-    int      osc;                   // oscillator number (0..5)
-    int      idx;                   // index into wave-table
-    fixed_t  oscSample;             // wave-table sample (normalized fixed_pt)
-    fixed_t  mixerOut = 0;          // output from mixer
-    fixed_t  attenOut = 0;          // output from variable-gain attenuator
-    fixed_t  reverbOut;             // output from reverb delay line
-    fixed_t  reverbLPF;             // output from reverb filter
-    fixed_t  finalOutput = 0;       // output to audio DAC
-    uint16   spiDACdata;            // SPI DAC register data
+  static   int   rvbIndex;        // index into ReverbDelayLine[]
+  static   fixed_t  reverbPrev;   // previous output from reverb delay line
+  int      osc;                   // oscillator number (0..5)
+  int      idx;                   // index into wave-table
+  fixed_t  oscSample;             // wave-table sample (normalized fixed_pt)
+  fixed_t  mixerOut = 0;          // output from mixer
+  fixed_t  attenOut = 0;          // output from variable-gain attenuator
+  fixed_t  reverbOut;             // output from reverb delay line
+  fixed_t  reverbLPF;             // output from reverb filter
+  fixed_t  finalOutput = 0;       // output to audio DAC
+  uint16   spiDACdata;            // SPI DAC register data
 
-    digitalWrite(TESTPOINT1, HIGH);  // pin pulses high during ISR execution
+  digitalWrite(TESTPOINT1, HIGH);  // pin pulses high during ISR execution
 
-    if (v_SynthEnable)
+  if (v_SynthEnable)
+  {
+    for (osc = 0;  osc < 6;  osc++)
     {
-        for (osc = 0;  osc < 6;  osc++)
-        {
-            // Wave-table oscillator algorithm
-            idx = v_OscAngle[osc] >> 16;  // integer part of v_OscAngle
-            oscSample = (fixed_t) g_sine_wave[idx] << 5;  // normalize
-            v_OscAngle[osc] += v_OscStep[osc];
-            if (v_OscAngle[osc] >= (WAVE_TABLE_SIZE << 16))
-                v_OscAngle[osc] -= (WAVE_TABLE_SIZE << 16);
-            
-            // Apply oscillator amplitude modulation
-            oscSample = (oscSample * v_OscAmpldModn[osc]) >> 10; // scalar multiply
-            
-            // Feed oscSample into mixer, scaled by the respective input setting
-            mixerOut += (oscSample * v_MixerLevel[osc]) >> 10;  // scalar multiply
-        }
-
-        // Apply Mixer Gain parameter to optimize output level 
-        mixerOut = (mixerOut * v_MixerOutGain) >> 7;  // (mixerOut * v_MixerOutGain) / 128
-        
-        // Apply Ampld Limiter
-        if (mixerOut > v_LimiterLevelPos)  mixerOut = v_LimiterLevelPos;
-        if (mixerOut < v_LimiterLevelNeg)  mixerOut = v_LimiterLevelNeg;
-
-        // Output attenuator -- Apply envelope, velocity, expression, etc.
-        attenOut = (mixerOut * v_OutputLevel) >> 10;  // scalar multiply
-        
-        // Reverberation effect (Courtesy of Dan Mitchell, ref. "BasicSynth")
-        if (m_RvbMix)
-        {
-            reverbOut = MultiplyFixed(ReverbDelayLine[rvbIndex], m_RvbDecay);
-            reverbLPF = (reverbOut + reverbPrev) >> 1;  // simple low-pass filter
-            reverbPrev = reverbOut;
-            ReverbDelayLine[rvbIndex] = ((attenOut * m_RvbAtten) >> 7) + reverbLPF;
-            if (++rvbIndex >= m_RvbDelayLen)  rvbIndex = 0;  // wrap
-            // Add reverb output to dry signal according to reverb mix setting...
-            finalOutput = (attenOut * (128 - m_RvbMix)) >> 7;  // Dry portion
-            finalOutput += (reverbOut * m_RvbMix) >> 7;   // Wet portion
-        }
-        else  finalOutput = attenOut;
+      // Wave-table oscillator algorithm
+      idx = v_OscAngle[osc] >> 16;  // integer part of v_OscAngle
+      oscSample = (fixed_t) g_sine_wave[idx] << 5;  // normalize
+      v_OscAngle[osc] += v_OscStep[osc];
+      if (v_OscAngle[osc] >= (WAVE_TABLE_SIZE << 16))
+        v_OscAngle[osc] -= (WAVE_TABLE_SIZE << 16);
+      
+      // Apply oscillator amplitude modulation
+      oscSample = (oscSample * v_OscAmpldModn[osc]) >> 10; // scalar multiply
+      
+      // Feed oscSample into mixer, scaled by the respective input setting
+      mixerOut += (oscSample * v_MixerLevel[osc]) >> 10;  // scalar multiply
     }
+
+    // Apply Mixer Gain parameter to optimize output level 
+    mixerOut = (mixerOut * v_MixerOutGain) >> 7;  // (mixerOut * v_MixerOutGain) / 128
+    
+    // Apply Ampld Limiter
+    if (mixerOut > v_LimiterLevelPos)  mixerOut = v_LimiterLevelPos;
+    if (mixerOut < v_LimiterLevelNeg)  mixerOut = v_LimiterLevelNeg;
+
+    // Output attenuator -- Apply envelope, velocity, expression, etc.
+    attenOut = (mixerOut * v_OutputLevel) >> 10;  // scalar multiply
+    
+    // Reverberation effect (Courtesy of Dan Mitchell, ref. "BasicSynth")
+    if (m_RvbMix)
+    {
+      reverbOut = MultiplyFixed(ReverbDelayLine[rvbIndex], m_RvbDecay);
+      reverbLPF = (reverbOut + reverbPrev) >> 1;  // simple low-pass filter
+      reverbPrev = reverbOut;
+      ReverbDelayLine[rvbIndex] = ((attenOut * m_RvbAtten) >> 7) + reverbLPF;
+      if (++rvbIndex >= m_RvbDelayLen)  rvbIndex = 0;  // wrap
+      // Add reverb output to dry signal according to reverb mix setting...
+      finalOutput = (attenOut * (128 - m_RvbMix)) >> 7;  // Dry portion
+      finalOutput += (reverbOut * m_RvbMix) >> 7;   // Wet portion
+    }
+    else  finalOutput = attenOut;
+  }
  
 #if USE_SPI_DAC_FOR_AUDIO  
-    spiDACdata = (uint16)(2048 + (int)(finalOutput >> 9));  // 12 LS bits
-    digitalWrite(SPI_DAC_CS, LOW);
-    SPI.transfer16(spiDACdata | 0x3000 );
-    digitalWrite(SPI_DAC_CS, HIGH);
+  spiDACdata = (uint16)(2048 + (int)(finalOutput >> 9));  // 12 LS bits
+  digitalWrite(SPI_DAC_CS, LOW);
+  SPI.transfer16(spiDACdata | 0x3000 );
+  digitalWrite(SPI_DAC_CS, HIGH);
 #else  
-    analogWrite(A0, 512 + (int)(finalOutput >> 11));  // use on-chip DAC (10 bits)
+  analogWrite(A0, 512 + (int)(finalOutput >> 11));  // use on-chip DAC (10 bits)
 #endif
 
-    digitalWrite(TESTPOINT1, LOW);
-    TC3->COUNT16.INTFLAG.bit.MC0 = 1;  // clear the IRQ
+  digitalWrite(TESTPOINT1, LOW);
+  TC3->COUNT16.INTFLAG.bit.MC0 = 1;  // clear the IRQ
 }
 
 
@@ -1027,29 +1027,29 @@ void  TC3_Handler(void)
  */
 fixed_t  Base2Exp(fixed_t xval)
 {
-    int   ixval;        // 13-bit integer representing x-axis coordinate
-    int   idx;          // 10 MS bits of ixval = array index into LUT, g_base2exp[]
-    int   irem3;        // 3 LS bits of ixval for interpolation
-    int32 ydelta;       // change in y value between 2 adjacent points in LUT
-    int32 yval;         // y value (from LUT) with interpolation
+  int   ixval;        // 13-bit integer representing x-axis coordinate
+  int   idx;          // 10 MS bits of ixval = array index into LUT, g_base2exp[]
+  int   irem3;        // 3 LS bits of ixval for interpolation
+  int32 ydelta;       // change in y value between 2 adjacent points in LUT
+  int32 yval;         // y value (from LUT) with interpolation
 
-    if (xval < IntToFixedPt(-1) || xval > IntToFixedPt(1))  xval = 0;
+  if (xval < IntToFixedPt(-1) || xval > IntToFixedPt(1))  xval = 0;
 
-    // Convert real xval (x-coord) to positive 13-bit integer in the range 0 ~ 8K
-    ixval = FractionPart((xval + IntToFixedPt(1)) / 2, 13); 
-    idx = ixval >> 3;  
-    irem3 = ixval & 7; 
+  // Convert real xval (x-coord) to positive 13-bit integer in the range 0 ~ 8K
+  ixval = FractionPart((xval + IntToFixedPt(1)) / 2, 13); 
+  idx = ixval >> 3;  
+  irem3 = ixval & 7; 
 
-    if (xval == IntToFixedPt(1))
-        yval = 2 << 14;  // maximum value in 18:14 bit format
-    else
-    {
-        yval = (int32) g_base2exp[idx];
-        ydelta = (((int32) g_base2exp[idx+1] - yval) * irem3) / 8;
-        yval = yval + ydelta;
-    }
+  if (xval == IntToFixedPt(1))
+    yval = 2 << 14;  // maximum value in 18:14 bit format
+  else
+  {
+    yval = (int32) g_base2exp[idx];
+    ydelta = (((int32) g_base2exp[idx+1] - yval) * irem3) / 8;
+    yval = yval + ydelta;
+  }
 
-    return  (fixed_t)(yval << 6);   // convert to 12:20 fixed-pt format
+  return  (fixed_t)(yval << 6);   // convert to 12:20 fixed-pt format
 }
 
 
