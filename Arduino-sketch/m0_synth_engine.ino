@@ -29,7 +29,7 @@ PatchParamTable_t  g_Patch;     // active patch parameters
 
 static int32    m_OscStepInit[6];         // Osc phase step values at Note-On
 static int32    m_OscStepDetune[6];       // Osc phase step values with de-tune applied
-static bool     m_OscMuted[6];            // True if osc freq > 0.4 x SAMPLE_RATE_HZ       
+static bool     m_OscMuted[6];            // True if osc freq > 0.4 x SAMPLE_RATE_HZ
 static int32    m_LFO_Step;               // LFO "phase step" (fixed-point format)
 static fixed_t  m_LFO_output;             // LFO output signal, normalized, bipolar (+/-1.0)
 static fixed_t  m_RampOutput;             // Vibrato Ramp output level,  normalized (0..+1)
@@ -104,11 +104,11 @@ const  float  g_NoteFrequency[] =
 };
 
 // Set of 12 fixed values for Osc. Frequency Mutiplier:
-const  float  g_FreqMultConst[] = 
+const  float  g_FreqMultConst[] =
         { 0.5, 1.0, 1.333333, 1.5, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0 };
 
 // Values for Audio Ampld Level... 0 + 16 fixed levels on 3dB log scale
-const  uint16  g_AmpldLevelLogScale_x1000[] =  
+const  uint16  g_AmpldLevelLogScale_x1000[] =
         { 0, 5, 8, 11, 16, 22, 31, 44, 63, 88, 125, 177, 250, 353, 500, 707, 1000 };
 
 
@@ -220,7 +220,7 @@ void  SynthNoteChange(uint8 noteNum)
   if (noteNum > 120)  noteNum -= 12;   // too high
   if (noteNum < 12)   noteNum += 12;   // too low
   m_NotePlaying = noteNum;
-  
+
   for (osc = 0;  osc < 6;  osc++)  // Update 6 oscillators...
   {
     // Convert MIDI note number to frequency (Hz) and apply OscFreqMult param.
@@ -319,7 +319,7 @@ void   SynthPitchBend(int bipolarPosn)
   // Scale lever position (arg) according to 'PitchBendRange' config param.
   // PitchBendRange may be up to 12 semitones (ie. 1 octave maximum).
   int  posnScaled = (bipolarPosn * g_Config.PitchBendRange) / 12;  // +/-8K max.
-  
+
   // Convert to 20-bit *signed* fixed-point fraction  (13 + 7 = 20 bits)
   m_PitchBendFactor = (fixed_t) (posnScaled << 7);
 }
@@ -504,7 +504,7 @@ void   TransientEnvelopeGen()
     m_TriggerAttack2 = 0;
     m_TriggerRelease2 = 0;
     envPhaseTimer = 0;
-    sustainLevel = IntToFixedPt((int) g_Patch.Env2SustainLevel) / 100; 
+    sustainLevel = IntToFixedPt((int) g_Patch.Env2SustainLevel) / 100;
     ampldMaximum = FIXED_MAX_LEVEL;  // for Peak-Hold phase
     ampldDelta = ampldMaximum / 10;  // ENV2 attack time = 10ms (fixed)
     EnvSegment = ENV_ATTACK;
@@ -599,7 +599,7 @@ void  ContourGenerator()
     segmentTimer = 0;
     contourSegment = CONTOUR_DELAY;
   }
-  
+
   if (m_TriggerReset)  // Note-Off event
   {
     m_TriggerReset = 0;
@@ -657,13 +657,13 @@ void   AudioLevelController()
   volatile  fixed_t  outputLevel;     // immune to corruption by ISR
   fixed_t  exprnLevel;
   uint8   controlSource = g_Patch.AmpControlMode;  // default
-  
-  // Check for global (config) override of patch parameter 
-  if (g_Config.AudioAmpldCtrlMode == AUDIO_CTRL_CONST) 
+
+  // Check for global (config) override of patch parameter
+  if (g_Config.AudioAmpldCtrlMode == AUDIO_CTRL_CONST)
     controlSource = AMPLD_CTRL_CONST_MAX;
-  else if (g_Config.AudioAmpldCtrlMode == AUDIO_CTRL_ENV1_VELO) 
+  else if (g_Config.AudioAmpldCtrlMode == AUDIO_CTRL_ENV1_VELO)
     controlSource = AMPLD_CTRL_ENV1_VELO;
-  else if (g_Config.AudioAmpldCtrlMode == AUDIO_CTRL_EXPRESS) 
+  else if (g_Config.AudioAmpldCtrlMode == AUDIO_CTRL_EXPRESS)
     controlSource = AMPLD_CTRL_EXPRESS;
   else  controlSource = g_Patch.AmpControlMode;
 
@@ -671,7 +671,7 @@ void   AudioLevelController()
   {
     if (m_NoteOn)  outputAmpld = FIXED_MAX_LEVEL / 2;
     else  outputAmpld = 0;  // Mute when note terminated
-  } 
+  }
   else if (controlSource == AMPLD_CTRL_ENV1_VELO)  // mode 2
   {
     if (g_CVcontrolMode && g_Config.CV3_is_Velocity)
@@ -683,7 +683,7 @@ void   AudioLevelController()
 //  if (m_ENV1_Output)  exprnLevel = m_ExpressionLevel;
 //  else  exprnLevel = 0;  // Mute when ENV1 release phase ends (option 1), or...
     exprnLevel = m_ExpressionLevel;  // ... let MIDI controller determine the level
-    
+
     // Apply IIR smoothing filter to eliminate abrupt step changes (K = 1/16)
     smoothExprnLevel -= smoothExprnLevel >> 4;  // divide by 16
     smoothExprnLevel += exprnLevel >> 4;
@@ -691,7 +691,7 @@ void   AudioLevelController()
   }
   else  // controlSource == AMPLD_CTRL_CONST_MAX   // mode 0
   {
-//  if (m_NoteOn)  outputAmpld = FIXED_MAX_LEVEL;  
+//  if (m_NoteOn)  outputAmpld = FIXED_MAX_LEVEL;
 //  else  outputAmpld = 0;  // Mute when note terminated (option 1), or...
     outputAmpld = FIXED_MAX_LEVEL;  // ... sound the note indefinitely
   }
@@ -700,13 +700,13 @@ void   AudioLevelController()
 
   outputLevel = FractionPart(outputAmpld, 10);  // unit = 1/1024, range 0..1023
   v_OutputLevel = outputLevel;
-    
+
   // Convert limiter level (%) to fixed-point normalized value for ISR
   if (g_Patch.LimiterLevelPc != 0)   // Limiter enabled...
     v_LimiterLevelPos = IntToFixedPt(g_Patch.LimiterLevelPc) / 100;
   else  // Limiter disabled...
     v_LimiterLevelPos = MAX_CLIPPING_LEVEL;  // maximum allowed level
-		
+
   v_LimiterLevelNeg = 0 - v_LimiterLevelPos;
 }
 
@@ -732,7 +732,7 @@ void   LowFrequencyOscillator()
   waveIdx = oscAngleLFO >> 8;  // integer part of oscAngleLFO
   m_LFO_output = (fixed_t) g_sine_wave[waveIdx] << 5;  // normalized sample
   oscAngleLFO += m_LFO_Step;
-  if (oscAngleLFO >= (WAVE_TABLE_SIZE << 8))  
+  if (oscAngleLFO >= (WAVE_TABLE_SIZE << 8))
     oscAngleLFO -= (WAVE_TABLE_SIZE << 8);
 }
 
@@ -742,7 +742,7 @@ void   LowFrequencyOscillator()
  *
  * Called by the SynthProcess() at 5ms intervals, this function generates a linear ramp.
  *
- * The vibrato (LFO) delayed ramp is triggered by a Note-On event. 
+ * The vibrato (LFO) delayed ramp is triggered by a Note-On event.
  * If a Legato note change occurs, vibrato is stopped (fast ramp down) and the ramp delay
  * is re-started, so that vibrato will ramp up again after the delay.
  *
@@ -779,7 +779,7 @@ void   VibratoRampGenerator()
   }
   else if (rampState == 1)  // Delaying before ramp-up begins
   {
-    if (rampTimer_ms >= g_Patch.LFO_RampTime)  
+    if (rampTimer_ms >= g_Patch.LFO_RampTime)
     {
       rampStep = IntToFixedPt(5) / (int) g_Patch.LFO_RampTime;
       rampState = 2;
@@ -795,7 +795,7 @@ void   VibratoRampGenerator()
   {
     if (m_RampOutput > 0)  m_RampOutput -= rampStep;
     if (m_RampOutput < 0)  m_RampOutput = 0;
-    
+
     if (m_RampOutput < (IntToFixedPt(1) / 100))  // output is below 0.01
     {
       // If a legato note change has occurred, re-start the ramp delay
@@ -816,7 +816,7 @@ void   VibratoRampGenerator()
  * continuously updated while a note is in progress. The function also modifies the
  * oscillator frequencies according to the respective de-tune patch parameters.
  * This function also applies the "master tune" configuration param.
- * 
+ *
  * The linear m_PitchBendFactor is transformed into a multiplier in the range 0.5 ~ 2.0.
  * Centre (zero) m_PitchBendFactor value gives a multplier value of 1.00.
  *
@@ -832,13 +832,13 @@ void   OscFreqModulation()
   int32   oscStep;         // temporary for calc'n (16:16 bit fix-pt)
   int32   oscFreqLFO;      // 24:8 bit fixed-point format (8-bit fraction)
   short   osc, cents;
-  
+
   oscFreqLFO = (((int) g_Patch.LFO_Freq_x10) << 8) / 10;  // 24:8 bit fixed-pt
-  m_LFO_Step = (oscFreqLFO * WAVE_TABLE_SIZE) / 1000;  // LFO Fs = 1000Hz  
-  
+  m_LFO_Step = (oscFreqLFO * WAVE_TABLE_SIZE) / 1000;  // LFO Fs = 1000Hz
+
   if (g_Config.VibratoCtrlMode == VIBRATO_BY_MODN_CC)  // Use Mod Lever
     modnLevel = (m_ModulationLevel * g_Config.PitchBendRange) / 12;  // 1 octave max.
-  
+
   if (g_Config.VibratoCtrlMode == VIBRATO_AUTOMATIC)  // Use LFO with ramp generator
     modnLevel = (m_RampOutput * g_Patch.LFO_FM_Depth) / 1200;
 
@@ -847,15 +847,15 @@ void   OscFreqModulation()
 
   if (g_Config.VibratoCtrlMode != 0)  // Vibrato has priority over pitch bend
   {
-    LFO_scaled = MultiplyFixed(m_LFO_output, modnLevel); 
+    LFO_scaled = MultiplyFixed(m_LFO_output, modnLevel);
     freqDevn = Base2Exp(LFO_scaled);   // range 0.5 ~ 2.0.
   }
   else if (g_Config.PitchBendMode != 0)  // pitch bend enabled
     freqDevn = Base2Exp(m_PitchBendFactor);  // max. 1 octave
   else  freqDevn = IntToFixedPt(1);  // No FM -- default
-   
+
   for (osc = 0;  osc < 6;  osc++)
-  { 
+  {
     cents = g_Patch.OscDetune[osc] + g_Config.MasterTuneOffset;  // signed
     detuneNorm = Base2Exp((IntToFixedPt(1) * cents) / 1200);
     m_OscStepDetune[osc] = MultiplyFixed(m_OscStepInit[osc], detuneNorm);
@@ -868,13 +868,13 @@ void   OscFreqModulation()
 /*
  * Oscillator Ampld Modulation and Mixer Level Control routine.
  *
- * Called by the SynthProcess() routine at 5ms intervals, this function determines the 
+ * Called by the SynthProcess() routine at 5ms intervals, this function determines the
  * amplitude modulation factors (multipliers) for the 6 oscillators, according to their
  * respective control sources (as specified by an array of 6 patch parameters).
  * The actual modulator operation is performed by the audio ISR, using output data.
  *
- * The function also determines the mixer input levels for the 6 oscillators, according 
- * to 6 patch parameters in the array g_Patch.MixerInputlevel[].  
+ * The function also determines the mixer input levels for the 6 oscillators, according
+ * to 6 patch parameters in the array g_Patch.MixerInputlevel[].
  * The actual mixer operation is performed by the audio ISR, using the output data.
  *
  * Input data:   g_Patch.OscAmpldModSource[osc],  g_Patch.MixerInputlevel[osc],
@@ -886,10 +886,10 @@ void   OscFreqModulation()
 void  OscAmpldModulation()
 {
   short  osc, step;
-  
+
   fixed_t  LFO_scaled = (m_LFO_output * g_Patch.LFO_AM_Depth) / 200;  // FS = +/-0.5
   fixed_t  LFO_AM_bias = IntToFixedPt(1) - IntToFixedPt(g_Patch.LFO_AM_Depth) / 200;
-  
+
   for (osc = 0;  osc < 6;  osc++)
   {
     // Determine Ampld Modulation factor for each oscillator
@@ -911,20 +911,20 @@ void  OscAmpldModulation()
       v_OscAmpldModn[osc] = m_KeyVelocity >> 10;  // 0..1024
     else if (g_Patch.OscAmpldModSource[osc] == OSC_MODN_SOURCE_VELO_NEG)
       v_OscAmpldModn[osc] = 1024 - (m_KeyVelocity >> 10);  // 1024..0
-    else  
+    else
       v_OscAmpldModn[osc] = 1000;  // Fixed, maximum level
-    
+
     if (v_OscAmpldModn[osc] > 1000)  v_OscAmpldModn[osc] = 1000;  // limit to 1000
-    
+
     // Update mixer input level for each oscillator...
-    if (m_OscMuted[osc])  v_MixerLevel[osc] = 0;  
-    else  
+    if (m_OscMuted[osc])  v_MixerLevel[osc] = 0;
+    else
     {
       step = g_Patch.MixerInputStep[osc];  // 0..16
       v_MixerLevel[osc] = g_AmpldLevelLogScale_x1000[step];  // 0..1000
     }
   } // end for-loop
-  
+
   // Set Mixer Output Gain control according to patch param.
   v_MixerOutGain = (g_Patch.MixerOutGain_x10 << 7) / 10;  // 0..1280
 }
@@ -969,24 +969,24 @@ void  TC3_Handler(void)
       v_OscAngle[osc] += v_OscStep[osc];
       if (v_OscAngle[osc] >= (WAVE_TABLE_SIZE << 16))
         v_OscAngle[osc] -= (WAVE_TABLE_SIZE << 16);
-      
+
       // Apply oscillator amplitude modulation
       oscSample = (oscSample * v_OscAmpldModn[osc]) >> 10; // scalar multiply
-      
+
       // Feed oscSample into mixer, scaled by the respective input setting
       mixerOut += (oscSample * v_MixerLevel[osc]) >> 10;  // scalar multiply
     }
 
-    // Apply Mixer Gain parameter to optimize output level 
+    // Apply Mixer Gain parameter to optimize output level
     mixerOut = (mixerOut * v_MixerOutGain) >> 7;  // (mixerOut * v_MixerOutGain) / 128
-    
+
     // Apply Ampld Limiter
     if (mixerOut > v_LimiterLevelPos)  mixerOut = v_LimiterLevelPos;
     if (mixerOut < v_LimiterLevelNeg)  mixerOut = v_LimiterLevelNeg;
 
     // Output attenuator -- Apply envelope, velocity, expression, etc.
     attenOut = (mixerOut * v_OutputLevel) >> 10;  // scalar multiply
-    
+
     // Reverberation effect (Courtesy of Dan Mitchell, ref. "BasicSynth")
     if (m_RvbMix)
     {
@@ -1001,13 +1001,13 @@ void  TC3_Handler(void)
     }
     else  finalOutput = attenOut;
   }
- 
-#if USE_SPI_DAC_FOR_AUDIO  
+
+#if USE_SPI_DAC_FOR_AUDIO
   spiDACdata = (uint16)(2048 + (int)(finalOutput >> 9));  // 12 LS bits
   digitalWrite(SPI_DAC_CS, LOW);
   SPI.transfer16(spiDACdata | 0x3000 );
   digitalWrite(SPI_DAC_CS, HIGH);
-#else  
+#else
   analogWrite(A0, 512 + (int)(finalOutput >> 11));  // use on-chip DAC (10 bits)
 #endif
 
@@ -1036,9 +1036,9 @@ fixed_t  Base2Exp(fixed_t xval)
   if (xval < IntToFixedPt(-1) || xval > IntToFixedPt(1))  xval = 0;
 
   // Convert real xval (x-coord) to positive 13-bit integer in the range 0 ~ 8K
-  ixval = FractionPart((xval + IntToFixedPt(1)) / 2, 13); 
-  idx = ixval >> 3;  
-  irem3 = ixval & 7; 
+  ixval = FractionPart((xval + IntToFixedPt(1)) / 2, 13);
+  idx = ixval >> 3;
+  irem3 = ixval & 7;
 
   if (xval == IntToFixedPt(1))
     yval = 2 << 14;  // maximum value in 18:14 bit format

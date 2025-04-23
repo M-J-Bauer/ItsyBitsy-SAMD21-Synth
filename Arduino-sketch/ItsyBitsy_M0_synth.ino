@@ -35,7 +35,7 @@ bool     g_EEpromFaulty;       // True if EEPROM error or not fitted
 int      g_DebugData;
 
 
-void  setup() 
+void  setup()
 {
   uint8_t  channelSwitches = 0;
 
@@ -46,13 +46,13 @@ void  setup()
   pinMode(CV_MODE_JUMPER, INPUT_PULLUP);
   pinMode(BUTTON_A_PIN, INPUT_PULLUP);
   pinMode(BUTTON_B_PIN, INPUT_PULLUP);
-  
+
   pinMode(TESTPOINT1, OUTPUT);  // scope test-point TP1
   pinMode(TESTPOINT2, OUTPUT);  // scope test-point TP2
   pinMode(SPI_DAC_CS, OUTPUT);
   pinMode(GATE_INPUT, INPUT);
   digitalWrite(SPI_DAC_CS, HIGH);  // Set DAC CS High (idle)
-    
+
   if (digitalRead(CHAN_SWITCH_S1) == HIGH)  channelSwitches += 1;
   if (digitalRead(CHAN_SWITCH_S2) == HIGH)  channelSwitches += 2;
   if (digitalRead(CHAN_SWITCH_S3) == HIGH)  channelSwitches += 4;
@@ -68,16 +68,16 @@ void  setup()
   Wire.setClock(400*1000);     // set IIC clock to 400kHz
   analogReadResolution(12);    // set ADC resolution to 12 bits
 
-  if (EEpromACKresponse() == FALSE)  
+  if (EEpromACKresponse() == FALSE)
     { g_EEpromFaulty = TRUE; }  // IIC bus error or EEprom not fitted
 
-  if (FetchConfigData() == 0 || g_Config.EEpromCheckWord != 0xABCDEF00) 
-  { 
+  if (FetchConfigData() == 0 || g_Config.EEpromCheckWord != 0xABCDEF00)
+  {
     g_EEpromFaulty = TRUE;  // EEprom read failed or data error
-    DefaultConfigData();  
-    StoreConfigData(); 
-  } 
-  
+    DefaultConfigData();
+    StoreConfigData();
+  }
+
   if (g_Config.PresetLastSelected >= GetNumberOfPresets())
     PresetSelect(0);
   else PresetSelect(g_Config.PresetLastSelected);
@@ -101,7 +101,7 @@ void  setup()
 
 // Main background process loop...
 //
-void  loop() 
+void  loop()
 {
   static uint32_t startPeriod_5ms;
   static uint32_t startPeriod_50ms;
@@ -115,13 +115,13 @@ void  loop()
     last_millis = millis();
     SynthProcess();
   }
-  
+
   if ((millis() - startPeriod_5ms) >= 5)  // 5ms period ended
   {
     startPeriod_5ms = millis();
     if (g_DisplayEnabled)  { ButtonScan();  PotService(); }
   }
-  
+
   if ((millis() - startPeriod_50ms) >= 50)  // 50ms period ended
   {
     startPeriod_50ms = millis();
@@ -156,7 +156,7 @@ void  PresetSelect(uint8 preset)
  * Function:  MidiInputService()
  *
  * MIDI IN service routine, executed frequently from within main loop.
- * This routine monitors the serial MIDI INPUT stream and whenever a complete message is 
+ * This routine monitors the serial MIDI INPUT stream and whenever a complete message is
  * received, it is processed.
  *
  * The synth module responds to valid messages addressed to the configured MIDI IN channel and,
@@ -178,18 +178,18 @@ void  MidiInputService()
   static  short  msgIndex;
   static  uint8  msgStatus;     // last command/status byte rx'd
   static  bool   msgComplete;   // flag: got msg status & data set
-  
+
   uint8   msgByte;
   uint8   msgChannel;  // 1..16 !
   BOOL    gotSysExMsg = FALSE;
-  
+
   if (Serial1.available() > 0)  // unread byte(s) available in Rx buffer
   {
     msgByte = Serial1.read();
-    
+
     if (msgByte & 0x80)  // command/status byte received (bit7 High)
     {
-      if (msgByte == SYSTEM_MSG_EOX)  
+      if (msgByte == SYSTEM_MSG_EOX)
       {
         msgComplete = TRUE;
         gotSysExMsg = TRUE;
@@ -209,7 +209,7 @@ void  MidiInputService()
     }
     else    // data byte received (bit7 LOW)
     {
-      if (msgComplete && msgStatus != SYS_EXCLUSIVE_MSG)  
+      if (msgComplete && msgStatus != SYS_EXCLUSIVE_MSG)
       {
         if (msgByteCount == 0)  // start of new data set -- running status
         {
@@ -224,16 +224,16 @@ void  MidiInputService()
         msgByteCount++;
       }
     }
-      
-    if ((msgByteCount != 0 && msgByteCount == msgBytesExpected) || gotSysExMsg)    
+
+    if ((msgByteCount != 0 && msgByteCount == msgBytesExpected) || gotSysExMsg)
     {
       msgComplete = TRUE;
       msgChannel = (midiMessage[0] & 0x0F) + 1;  // 1..16
-      
+
       if (msgChannel == g_MidiChannel || msgChannel == 16
       ||  g_MidiMode == OMNI_ON_MONO  || msgStatus == SYS_EXCLUSIVE_MSG)
       {
-        ProcessMidiMessage(midiMessage, msgByteCount); 
+        ProcessMidiMessage(midiMessage, msgByteCount);
         g_MidiRxSignal = TRUE;  // signal to GUI to flash MIDI Rx icon
         msgBytesExpected = 0;
         msgByteCount = 0;
@@ -253,7 +253,7 @@ void  ProcessMidiMessage(uint8 *midiMessage, short msgLength)
   uint8  leverPosn_Lo = midiMessage[1];
   uint8  leverPosn_Hi = midiMessage[2];
   int16  bipolarPosn;
-    
+
   switch (statusByte)
   {
     case NOTE_OFF_CMD:
@@ -284,7 +284,7 @@ void  ProcessMidiMessage(uint8 *midiMessage, short msgLength)
       SynthPitchBend(bipolarPosn);
       break;
     }
-    case SYS_EXCLUSIVE_MSG: 
+    case SYS_EXCLUSIVE_MSG:
     {
       ProcessMidiSystemExclusive(midiMessage, msgLength);
       break;
@@ -301,7 +301,7 @@ void  ProcessControlChange(uint8 *midiMessage)
   uint8  CCnumber = midiMessage[1];  // Control Change 'register' number
   uint8  dataByte = midiMessage[2];  // Control Change data value
   int    data14;
-  
+
   if (CCnumber == 2 || CCnumber == 7 || CCnumber == 11)  // High byte
   {
     expressionHi = dataByte;
@@ -328,7 +328,7 @@ void  ProcessControlChange(uint8 *midiMessage)
   {
     if (dataByte == 1) g_MidiParamPending = TRUE;  // Reg.Param. 01 is Master Tune
   }
-  // The following CC numbers are to set synth Config parameters:    
+  // The following CC numbers are to set synth Config parameters:
   // ````````````````````````````````````````````````````````````````````````
   else if (CCnumber == 38)  // Set Master Tune param. (= Data Entry LSB)
   {
@@ -368,31 +368,31 @@ void  ProcessControlChange(uint8 *midiMessage)
   // ````````````````````````````````````````````````````````````````````````
   else if (CCnumber == 70)  // Set osc. mixer output gain (unit = 0.1)
   {
-    if (dataByte != 0)  g_Patch.MixerOutGain_x10 = dataByte; 
+    if (dataByte != 0)  g_Patch.MixerOutGain_x10 = dataByte;
   }
   else if (CCnumber == 71)  // Set ampld limiter level (%), 0 => OFF
   {
-    if (dataByte <= 95)  g_Patch.LimiterLevelPc = dataByte; 
+    if (dataByte <= 95)  g_Patch.LimiterLevelPc = dataByte;
   }
   else if (CCnumber == 72)  // Set Ampld ENV Release Time (unit = 100ms)
   {
-    if (dataByte != 0 && dataByte <= 100)  g_Patch.EnvReleaseTime = (uint16) dataByte * 100; 
+    if (dataByte != 0 && dataByte <= 100)  g_Patch.EnvReleaseTime = (uint16) dataByte * 100;
   }
   else if (CCnumber == 73)  // Set Ampld ENV Attack Time (unit = 100ms)
   {
-    if (dataByte != 0 && dataByte <= 100)  g_Patch.EnvAttackTime = (uint16) dataByte * 100; 
+    if (dataByte != 0 && dataByte <= 100)  g_Patch.EnvAttackTime = (uint16) dataByte * 100;
   }
   else if (CCnumber == 74)  // Set Ampld ENV Peak Hold Time (unit = 100ms)
   {
-    if (dataByte <= 100)  g_Patch.EnvHoldTime = (uint16) dataByte * 100; 
+    if (dataByte <= 100)  g_Patch.EnvHoldTime = (uint16) dataByte * 100;
   }
   else if (CCnumber == 75)  // Set Ampld ENV Deacy Time (unit = 100ms)
   {
-    if (dataByte != 0 && dataByte <= 100)  g_Patch.EnvDecayTime = (uint16) dataByte * 100; 
+    if (dataByte != 0 && dataByte <= 100)  g_Patch.EnvDecayTime = (uint16) dataByte * 100;
   }
   else if (CCnumber == 76)  // Set Ampld ENV Sustain Level (unit = 1%)
   {
-    if (dataByte <= 100)  g_Patch.EnvSustainLevel = (uint16) dataByte; 
+    if (dataByte <= 100)  g_Patch.EnvSustainLevel = (uint16) dataByte;
   }
   else if (CCnumber == 77)  // Set LFO frequency (data = Hz, max 50)
   {
@@ -400,7 +400,7 @@ void  ProcessControlChange(uint8 *midiMessage)
   }
   else if (CCnumber == 78)  // Set LFO ramp time (unit = 100ms)
   {
-    if (dataByte <= 100)  g_Patch.LFO_RampTime = (uint16) dataByte * 100; 
+    if (dataByte <= 100)  g_Patch.LFO_RampTime = (uint16) dataByte * 100;
   }
   else if (CCnumber == 79)  // Set LFO FM (vibrato) depth (unit = 5 cents)
   {
@@ -434,15 +434,15 @@ int  MIDI_GetMessageLength(uint8 statusByte)
 {
   uint8  command = statusByte & 0xF0;
   uint8  length = 0;  // assume unsupported or unknown msg type
-  
+
   if (command == PROGRAM_CHANGE_CMD || command == CHAN_PRESSURE_CMD)  length = 2;
   if (command == NOTE_ON_CMD || command == NOTE_OFF_CMD
-  ||  command == CONTROL_CHANGE_CMD || command == PITCH_BEND_CMD)  
+  ||  command == CONTROL_CHANGE_CMD || command == PITCH_BEND_CMD)
   {
       length = 3;
   }
   if (statusByte == SYS_EXCLUSIVE_MSG)  length = MIDI_MSG_MAX_LENGTH;
-    
+
   return  length;
 }
 
@@ -461,7 +461,7 @@ int  MIDI_GetMessageLength(uint8 statusByte)
  * Synth Modulation and Expression levels are updated according to the voltages on
  * CV2 and CV3 inputs (resp).  Input CV4 controls LFO FM depth, if the respective
  * vibrato control mode parameter is set accordingly.
- * The GATE input controls the synth envelope generators, triggering Attack and Release 
+ * The GATE input controls the synth envelope generators, triggering Attack and Release
  * events on the Gate signal leading and trailing edges (resp).
  */
 void  CVinputService()
@@ -475,20 +475,20 @@ void  CVinputService()
   static int CV4readingPrev;   // CV4 reading on previous scan (mV)
 
   uint8  gateInput = (digitalRead(GATE_INPUT) == LOW) ? 1 : 0;  // active LOW pin
-  int  inputSignal_mV, noteNumber, freqLUTindex = 0;  
+  int  inputSignal_mV, noteNumber, freqLUTindex = 0;
   int  dataValue14b, FM_depth_cents;
   int  CV1Bound, deltaCV1;     // mV
   float  freqBound, freqStep, deltaFreq;  // Hz
 
   if (g_GateState == LOW && gateInput == HIGH)  // GATE rising edge
-  { 
+  {
     g_GateState = HIGH;
     g_CVcontrolMode = TRUE;
     attackPending = TRUE;
     gateTransitionTime = millis();
   }
-  else if (g_GateState == HIGH && gateInput == LOW)  // GATE falling edge 
-  { 
+  else if (g_GateState == HIGH && gateInput == LOW)  // GATE falling edge
+  {
     g_GateState = LOW;
     SynthTriggerRelease();
   }
@@ -498,7 +498,7 @@ void  CVinputService()
     SynthTriggerAttack();
     attackPending = FALSE;  // to prevent multiple attacks
   }
-  
+
   if (!g_CVcontrolMode)  return;  // MIDI control mode is active... bail!
 
   if ((callCount & 1) == 0)  // on every alternate call...
@@ -581,7 +581,7 @@ void  DefaultConfigData(void)
   g_Config.PresetLastSelected = 1;     // user preference
   g_Config.Pitch_CV_BaseNote = 36;     // MIDI note # (12..59)
   g_Config.Pitch_CV_Quantize = FALSE;
-  g_Config.CV3_is_Velocity = FALSE; 
+  g_Config.CV3_is_Velocity = FALSE;
   g_Config.CV1_FullScale_mV = 5100;    // 5100 => uncalibrated
   g_Config.MasterTuneOffset = 0;       // cents (-100 ~ +100)
   g_Config.EEpromCheckWord = 0xABCDEF00;  // last entry
@@ -686,7 +686,7 @@ int  EEpromReadData(uint8_t *pData, uint8_t promBlock, uint8_t promAddr, int nby
 {
   int  bcount = 0;
 
-  if (EEpromACKresponse()) 
+  if (EEpromACKresponse())
   {
     Wire.beginTransmission(0x50 | (promBlock << 1));  // Control byte
     Wire.write(promAddr);
@@ -696,7 +696,7 @@ int  EEpromReadData(uint8_t *pData, uint8_t promBlock, uint8_t promAddr, int nby
     Wire.requestFrom(0x50, nbytes);
     while (bcount < nbytes)  { *pData++ = Wire.read();  bcount++; }
   }
-          
+
   return  bcount;
 }
 
@@ -1014,7 +1014,7 @@ const  PatchParamTable_t  g_PresetPatch[] =
     200, 25,                        // ENV2: Dec, Sus %
     70, 5, 0, 70,                   // LFO: Hz x10, Ramp, FM %, AM %
     7, 0,                           // Mixer Gain x10, Limit %FS
-  },  
+  },
   // Assorted Uncategorized Presets
   {
     "Hollow Wood Drum",             // 24  (created by JPM)
