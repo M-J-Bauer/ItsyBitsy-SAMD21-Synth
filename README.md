@@ -12,8 +12,8 @@ Download and install the latest version of Arduino IDE on your PC and follow the
 
 [Arduino IDE Setup](https://learn.adafruit.com/introducing-itsy-bitsy-m0/setup)
 
-Regardless of the board type connected, Adafruit or Robotdyn, select "Adafruit ItsyBitsy M0 Express".
-(Don't choose "Arduino Zero" or any other Arduino board!)
+Regardless of the board type you're using, Adafruit or Robotdyn, install the Adafruit SAMD21 M0 library. When you connect
+the board to a USB port on your computer, Arduino will determine the board type automatically.
 
 To build the ItsyBitsy M0 synth firmware, you also need to install a "fast timer" library in the Arduino IDE.
 Open the Arduino Library Manager. From the 'Type' drop-down list, choose 'All'. In the 'Filter' box, write "fast_samd21_tc".
