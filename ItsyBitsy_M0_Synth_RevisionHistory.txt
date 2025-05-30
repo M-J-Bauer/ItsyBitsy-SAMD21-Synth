@@ -95,27 +95,54 @@ v1.9  20-03-2025
 ````````````````
 EEPROM driver code fixed. (Verified by JPM.)
 
-v1.9.6  23-APR-2025
-```````````````````
+v1.9.6  23-APR-2025 : Released on GitHub
+````````````````````````````````````````
 Fixed bug in MIDI input routine: Data Entry (Master Tune) message must be
 preceded by Registered Param (01) message; else Data Entry msg ignored.
 
 
-================================================================================
+v2.0  30-MAY-2025 : Released on GitHub
+``````````````````````````````````````
+Added GATE signal 'de-bounce' function in case GATE input source is a manual 
+push-button or other mechanical switch (with adverse contact bounce).
 
-To do (?):
-``````````
-+ Refine existing presets;  Add new presets up to #31.  Release as v2.0
+Changed 'Master Tune' param range, now -100 to +100 cents (+1/-1 semitone)
+using control panel.  (MIDI range remains ±64 due to 7-bit data range.) 
 
-+ Add 'User Patch':  Current preset number and active patch param's may be
-  saved in EEPROM for later recall as Preset #0. (? TBD)
+Added feature to switch 'Legato Mode' ON or OFF via MIDI message CC68.
+Added icon (^) to show 'Legato Mode' status in SETUP MENU screen (top LHS).
+Presets 01 ~ 23 have Legato disabled when selected.
+Presets 24 ~ 31 have Legato enabled when selected (to suit EWI controllers).
 
-+ Add support for Pitch Bend using CV1 input in MIDI control mode.
-                  ``````````       ```          `````````````````
-+ Add support for Modulation using CV2 input in MIDI control mode.
-                  ``````````       ```          `````````````````
+Modified MIDI input service routine. When Legato is OFF, the synth operates
+in "Multi-Trigger" keying mode (to suit Polyphonic MIDI controllers).
+[See project website for details.]
+
+Modulation level is set at 50% whenever a preset is selected, in case there's 
+no signal input (MIDI or CV) to vary the level while a note is playing.
+
+Added configuration parameter 'CV Auto-switch' (value ON or OFF).
+The parameter can be set ON or OFF in the Setup screen 'CV Options'.
+If it is set 'ON', CV control mode will switch automatically between MIDI
+and CV control when a MIDI Note-On msg or GATE signal is input (resp.).
+If it is set 'OFF', CV control is disabled, allowing MIDI control only.
+
+Modified CV input service routine. CV1 ADC readings are filtered (1st-order
+IIR with K = 1/16) which causes a delay, hence unwanted 'glissando'.
+The filter output variable is now reset to the instantaneous ADC reading every
+time the GATE signal transitions from Low to High, to eliminate the annoying
+glide from the last note playing to the new note.
+
+Modified Start-up screen: 'Defualt' option (button B) not shown if EEPROM is 
+faulty or not installed.
+Added a firmware build option: #define EEPROM_IS_INSTALLED  {TRUE or FALSE}
+Set this symbol FALSE if EEPROM is not installed so that the error message
+'<!> EEPROM fault' does not appear on the Startup screen.  Instead, a warning
+message 'No EEPROM support' will be displayed.
+
+Refined instrument sounds in some presets. Total presets: 32.
+
 
 ________________________________________________________________________________
 
 ItsyBitsy_M0_Synth_RevisionHistory.txt                           www.mjbauer.biz  
-
