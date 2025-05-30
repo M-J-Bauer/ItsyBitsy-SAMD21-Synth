@@ -20,7 +20,7 @@ To build the ItsyBitsy M0 synth firmware, you also need to install a "fast timer
 Open the Arduino Library Manager. From the 'Type' drop-down list, choose 'All'. In the 'Filter' box, write "fast_samd21_tc"
 and click 'INSTALL'. Then choose Type = "Installed". The library should then appear in your Arduino IDE as in this screen-shot:
 
-![Screenshot_SAMD21_fast_timer_library](https://github.com/user-attachments/assets/5860a889-1b6d-415f-8d85-44b394ccafce)
+![Screenshot_SAMD21_fast_timer_library](https://github.com/user-attachments/assets/398ecf9a-11e7-4b22-b53f-e896f9cf998e)
 
 Steps to compile and "upload" the firmware:
 
