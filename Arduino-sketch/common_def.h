@@ -15,11 +15,11 @@
 #include <ctype.h>
 #include <math.h>
 
-#define USE_CONSOLE_CLI  0    // CLI omitted in REMI 3 version
+#define USE_CONSOLE_CLI  0    // CLI not implemented in this application
 #define FIXED_POINT_FORMAT_12_20_BITS   // range: +/-2047,  precision: +/-0.000001
 
 #ifndef LITTLE_ENDIAN
-#define LITTLE_ENDIAN   1   // True for Teensy 3.2
+#define LITTLE_ENDIAN   1   // True for AVR-8, PIC18F, PIC32MX and SAMD21
 #endif
 
 typedef signed char         int8;

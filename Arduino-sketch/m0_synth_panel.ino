@@ -413,20 +413,21 @@ void UserState_StartupScreen()
 {
   static  uint32  stateTimer;  // unit = 50ms
   static  bool  doneEEpromCheck;  // FALSE initially
-  uint8  *pData = (uint8 *) &g_Config.EEpromCheckWord;
-
+  
   if (isNewScreen) 
   {
     stateTimer = 0;
 
-    if (g_EEpromFaulty && !doneEEpromCheck)  // One time only
+    if (g_EEpromFaulty && !doneEEpromCheck)  // EEPROM check... One time only
     {
-      DisplayTitleBar("<!> EEprom Fault");
+      if (EEPROM_IS_INSTALLED) DisplayTitleBar("<!> EEPROM Fault");
       Disp_SetFont(MONO_8_NORM);
-      Disp_PosXY(16, 20);
-      Disp_PutText("Using default");   
-      Disp_PosXY(16, 32);
-      Disp_PutText("configuration");  
+      Disp_PosXY(8, 8);
+      if (!EEPROM_IS_INSTALLED) Disp_PutText("No EEPROM support!");
+      Disp_PosXY(8, 28);
+      Disp_PutText("* Using default");   
+      Disp_PosXY(8, 40);
+      Disp_PutText("  configuration.");  
       return;
     }
 
@@ -441,7 +442,8 @@ void UserState_StartupScreen()
     Disp_PutText(FIRMWARE_VERSION);  // defined in m0_synth_def.h
     Disp_SetFont(PROP_8_NORM);
     Disp_PosXY(4, 40);
-    if (g_CVcontrolMode)  // Present option to calibrate CV1 input
+
+    if (digitalRead(CV_MODE_JUMPER) == LOW)  // Show option to calibrate CV1 input
     {
       Disp_PutText("(Wait for Home screen)");
       DisplayButtonLegend(BUTT_POS_A, "Cal CV1");
@@ -454,15 +456,15 @@ void UserState_StartupScreen()
       else  Disp_PutDecimal(g_MidiChannel, 1);
       DisplayButtonLegend(BUTT_POS_A, "Home");
     }
-    DisplayButtonLegend(BUTT_POS_B, "Default");
+    if (!g_EEpromFaulty) DisplayButtonLegend(BUTT_POS_B, "Default");
   }
 
   if (ButtonHit('A'))
   {
-      if (g_CVcontrolMode) GoToNextScreen(CALIBRATE_CV1);
+      if (digitalRead(CV_MODE_JUMPER) == LOW) GoToNextScreen(CALIBRATE_CV1);
       else  GoToNextScreen(HOME_SCREEN);
   }
-  if (ButtonHit('B')) GoToNextScreen(CONFIRM_DEFAULT);
+  if (ButtonHit('B') && !g_EEpromFaulty) GoToNextScreen(CONFIRM_DEFAULT);
 
   if (g_EEpromFaulty && !doneEEpromCheck)
   {
@@ -532,6 +534,7 @@ void UserState_HomeScreen()
   static bool  CVmodeIndicated;
   uint8 setting;
   uint8 preset_id = g_Config.PresetLastSelected;
+  char *presetName = (char *)g_PresetPatch[preset_id].PresetName;
 
   if (isNewScreen) 
   {
@@ -549,8 +552,11 @@ void UserState_HomeScreen()
     Disp_PosXY(Disp_GetX() + 2, 2);
     Disp_PutChar('6');
 
+    Disp_PosXY(0, 31);
+    Disp_DrawLineHoriz(128);
+    
     Disp_SetFont(MONO_8_NORM);
-    Disp_PosXY(32, 16);
+    Disp_PosXY(32, 18);
     Disp_PutText(HOME_SCREEN_SYNTH_DESCR);  // see file m0_synth_def.h
     // Display logo at upper RHS according to MCU board type...
     Disp_PosXY(116, 0);
@@ -584,12 +590,12 @@ void UserState_HomeScreen()
     Disp_SetFont(MONO_8_NORM);
     Disp_PutDecimal(g_Config.PresetLastSelected, 2);  // Preset #
     Disp_PutChar(' ');
-    Disp_SetFont(PROP_8_NORM);
-    Disp_PutText((char *)g_PresetPatch[preset_id].PresetName);
+    if (strlen(presetName) > 18) Disp_SetFont(PROP_8_NORM);
+    Disp_PutText(presetName);
     lastPresetShown = g_Config.PresetLastSelected;
   }
 
-  if (g_MidiRxSignal && !midiRxIconVisible)
+  if (g_MidiRxSignal && !midiRxIconVisible)  // MIDI message incoming
   {
     g_MidiRxSignal = FALSE;  // prevent repeats
     midiNoActivityTimer = 0;
@@ -604,29 +610,32 @@ void UserState_HomeScreen()
     midiRxIconVisible = FALSE;
   }
 
-  if (g_GateState == HIGH && !gateIconVisible)  // GATE asserted
+  if (g_CVcontrolMode)
   {
-    Disp_PosXY(102, 1);
-    Disp_PutImage(gate_signal_icon_8x7, 8, 7);
-    gateIconVisible = TRUE;
-  }
-  else if (gateIconVisible && g_GateState == LOW)  // GATE negated
-  {
-    Disp_PosXY(102, 1);
-    Disp_BlockClear(10, 9);  // erase GATE icon
-    gateIconVisible = FALSE;
+    if (g_GateState == HIGH && !gateIconVisible)  // GATE asserted
+    {
+      Disp_PosXY(102, 1);
+      Disp_PutImage(gate_signal_icon_8x7, 8, 7);
+      gateIconVisible = TRUE;
+    }
+    else if (gateIconVisible && g_GateState == LOW)  // GATE negated
+    {
+      Disp_PosXY(102, 1);
+      Disp_BlockClear(10, 9);  // erase GATE icon
+      gateIconVisible = FALSE;
+    }
   }
 
-  if (g_CVcontrolMode && !CVmodeIndicated)
+  if (g_CVcontrolMode && !CVmodeIndicated)  // Indicate 'CV mode' status
   {
     Disp_SetFont(MONO_8_NORM);
-    Disp_PosXY(116, 16);
+    Disp_PosXY(116, 18);
     Disp_PutText("CV");
     CVmodeIndicated = TRUE;
   }
   else if (CVmodeIndicated && !g_CVcontrolMode)
   {
-    Disp_PosXY(116, 16);
+    Disp_PosXY(116, 18);
     Disp_BlockClear(12, 8);
     CVmodeIndicated = FALSE;
   }
@@ -638,6 +647,7 @@ void UserState_SelectPreset()
   static uint32 timeSinceLastRefresh_ms;  // unit = ms
   static uint8 setting;
   static bool settingChanged;
+  char *presetName;
   bool doRefresh = FALSE;
 
   if (isNewScreen) 
@@ -674,12 +684,14 @@ void UserState_SelectPreset()
     timeSinceLastRefresh_ms = 0;  // reset timer
   }
 
-  if (settingChanged && timeSinceLastRefresh_ms >= 350) 
+  if (settingChanged && timeSinceLastRefresh_ms >= 250)
   {
-    Disp_SetFont(PROP_8_NORM);  // Display preset name
+    presetName = (char *)g_PresetPatch[setting].PresetName;
+    if (strlen(presetName) <= 18) Disp_SetFont(MONO_8_NORM);
+    else Disp_SetFont(PROP_8_NORM);
     Disp_PosXY(8, 38);
     Disp_BlockClear(120, 8);  // erase existing line
-    Disp_PutText((char *)g_PresetPatch[setting].PresetName);
+    Disp_PutText(presetName);  // Display preset name
     settingChanged = FALSE;  // prevent repeat refresh
     timeSinceLastRefresh_ms = 0;
   }
@@ -695,6 +707,7 @@ void UserState_SetupMenu()
     "ENV Decay", "ENV Sustain", "ENV Release", "Mixer Gain", "Limiter"
   };
   static uint8 setting;
+  static bool  legatoIndicated;
   bool doRefresh = FALSE;
 
   if (isNewScreen) 
@@ -707,6 +720,7 @@ void UserState_SetupMenu()
     Disp_PutText("Parameter to adjust:");
     DisplayButtonLegend(BUTT_POS_A, "Home");
     DisplayButtonLegend(BUTT_POS_B, "Select");
+    legatoIndicated = FALSE;
     doRefresh = TRUE;
   }
 
@@ -746,6 +760,20 @@ void UserState_SetupMenu()
     Disp_PosXY(16, 32);
     Disp_BlockClear(96, 12);  // clear existing data
     Disp_PutText(parameterName[setting]);
+  }
+
+  if (g_LegatoMode && !legatoIndicated)  // Indicate Legato Mode status
+  {
+    Disp_SetFont(MONO_8_NORM);
+    Disp_PosXY(0, 1);
+    Disp_PutChar('^');
+    legatoIndicated = TRUE;
+  }
+  else if (legatoIndicated && !g_LegatoMode)
+  {
+    Disp_PosXY(0, 1);
+    Disp_BlockClear(8, 8);  // erase
+    legatoIndicated = FALSE;
   }
 }
 
@@ -840,8 +868,7 @@ void UserState_SetVibratoMode()
       g_Config.VibratoCtrlMode = setting;
       StoreConfigData();
     }
-    if (g_CVcontrolMode) GoToNextScreen(SET_REVERB_LEVEL);  // skip Pitch-bend
-    else  GoToNextScreen(SET_PITCH_BEND);
+    GoToNextScreen(SET_PITCH_BEND);
   }
 
   if (doRefresh) 
@@ -890,7 +917,7 @@ void UserState_SetPitchBendMode()
       g_Config.PitchBendMode = setting;
       StoreConfigData();
     }
-    GoToNextScreen(SET_REVERB_LEVEL);
+    GoToNextScreen(SETUP_MENU);
   }
 
   if (doRefresh) 
@@ -940,7 +967,7 @@ void UserState_SetReverbLevel()
   if (ButtonHit('B'))  // Affirm
   {
     StoreConfigData();
-    GoToNextScreen(SET_LFO_DEPTH);  // Skip CV options and Master Tune
+    GoToNextScreen(SETUP_MENU);  // Skip CV options and Master Tune
   }
 
   if (doRefresh) 
@@ -972,11 +999,12 @@ void UserState_SetCVOptions()
     Disp_PosXY(4, 30);
     Disp_PutText("CV3-> Velocity: ");
     Disp_PosXY(4, 40);
-//  Disp_PutText(".reserved.");  // maximum of 3 CV Options
+    Disp_PutText("CV Auto-switch: ");  // maximum of 3 CV Options
     DisplayButtonLegend(BUTT_POS_A, "Cancel");
     DisplayButtonLegend(BUTT_POS_B, "Affirm");
     setting = (g_Config.Pitch_CV_Quantize) ? 1 : 0;
     setting += (g_Config.CV3_is_Velocity) ? 2 : 0;
+    setting += (g_Config.CV_ModeAutoSwitch) ? 4 : 0;
     settingChanged = FALSE;
     doRefresh = TRUE;
   }
@@ -995,8 +1023,11 @@ void UserState_SetCVOptions()
     {
       g_Config.Pitch_CV_Quantize = ((setting & 1) != 0);
       g_Config.CV3_is_Velocity = ((setting & 2) != 0);
-//    g_Config.Reserved1 = ((setting & 4) != 0);
+      g_Config.CV_ModeAutoSwitch = ((setting & 4) != 0);
       StoreConfigData();
+      SynthPrepare();
+      if (!g_Config.CV_ModeAutoSwitch) 
+        g_CVcontrolMode = FALSE;  // MIDI control only
     }
     GoToNextScreen(SET_CV_BASE_NOTE);
   }
@@ -1010,7 +1041,7 @@ void UserState_SetCVOptions()
     Disp_PosXY(104, 30);
     if (setting & 2)  Disp_PutText("ON");  else  Disp_PutText("OFF");
     Disp_PosXY(104, 40);
-//  if (setting & 4)  Disp_PutText("ON");  else  Disp_PutText("OFF");
+    if (setting & 4)  Disp_PutText("ON");  else  Disp_PutText("OFF");
   }
 }
 
@@ -1051,7 +1082,7 @@ void UserState_SetCVBaseNote()
       g_Config.Pitch_CV_BaseNote = setting;
       StoreConfigData();
     }
-    GoToNextScreen(SET_MASTER_TUNE);
+    GoToNextScreen(SETUP_MENU);
   }
 
   if (doRefresh) 
@@ -1094,7 +1125,17 @@ void UserState_SetMasterTune()
 
   if (PotMoved()) 
   {
-    setting = ((short) PotPosition() * 100) / 255 - 50;  // -50 to +50
+    setting = (short)PotPosition() - 128;  // -128 ~ +127
+    if (setting >= 0)  // pot posn is right of centre
+    {
+      if (setting < 6) setting = 0;  // dead-band
+      else  setting = ((setting - 6) * 100) / 120;  // 0 ~ +100
+    }
+    else  // pot posn is left of centre
+    {
+      if (setting > -6) setting = 0;  // dead-band
+      else  setting = ((setting + 6) * 100) / 121;  // 0 ~ -100
+    }
     g_Config.MasterTuneOffset = setting;
     doRefresh = TRUE;
   }
@@ -1107,14 +1148,14 @@ void UserState_SetMasterTune()
   if (ButtonHit('B'))  // Affirm
   {
     StoreConfigData();
-    GoToNextScreen(SET_LFO_DEPTH);
+    GoToNextScreen(SETUP_MENU);
   }
 
   if (doRefresh) 
   {
     Disp_SetFont(MONO_16_NORM);
     Disp_PosXY(40, 24);
-    Disp_BlockClear(36, 16);  // clear existing data
+    Disp_BlockClear(48, 16);  // clear existing data
     setting = g_Config.MasterTuneOffset;
     absValue = (setting >= 0) ? setting : (0 - setting);
     if (setting < 0)  Disp_PutChar('-');
@@ -1539,7 +1580,7 @@ void  UserState_Set_LimiterLevel()
     Disp_PosXY(116, 1);
     Disp_PutImage(patch_icon_9x9, 9, 9);  // Patch icon
     DisplayButtonLegend(BUTT_POS_A, "Exit");
-    DisplayButtonLegend(BUTT_POS_B, "Next");
+    DisplayButtonLegend(BUTT_POS_B, "Back");
     doRefresh = TRUE;
   }
 
@@ -1554,7 +1595,7 @@ void  UserState_Set_LimiterLevel()
   }
 
   if (ButtonHit('A'))  GoToNextScreen(SETUP_MENU);
-  if (ButtonHit('B'))  GoToNextScreen(SET_LFO_DEPTH);  // back to 1st patch param
+  if (ButtonHit('B'))  GoToNextScreen(SET_MIXER_GAIN);  // back 
 
   if (doRefresh) 
   {
@@ -1578,7 +1619,7 @@ void  UserState_Calibrate_CV1()
   static int  aveReading_x256;  // ADC reading average, fixed-point (8-bit frac.)
   int  uncalReading_mV, calibReading_mV, thisReading_mV;
 
-  // Read CV1 input and apply first-order IIR filter (rolling average), K = 0.125
+  // Read CV1 input and apply first-order IIR filter (rolling average), K = 1/8
   thisReading_mV = ((int) analogRead(A1) * 5100) / 4095;
   aveReading_x256 -= aveReading_x256 / 8;
   aveReading_x256 += (thisReading_mV << 8) / 8;

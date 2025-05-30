@@ -61,7 +61,7 @@ volatile int32    v_OscAngle[6];          // Osc sample pos'n in wave-table [16:
 volatile int32    v_OscStep[6];           // Osc sample pos'n increment [16:16]
 volatile uint16   v_OscAmpldModn[6];      // Osc ampld modulation x1024 (0..1024)
 volatile uint16   v_MixerLevel[6];        // Mixer input levels x1000 (0..1000)
-volatile uint16   v_MixerOutGain;         // Mixer output gain x100 (x0.8 - x10 %)
+volatile uint16   v_MixerOutGain;         // Mixer output gain x10  (range 10..128)
 volatile fixed_t  v_LimiterLevelPos;      // Audio limiter level (pos. peak, normalized)
 volatile fixed_t  v_LimiterLevelNeg;      // Audio limiter level (neg. peak, normalized)
 volatile uint16   v_OutputLevel;          // Audio output level x1000 (0..1000)
@@ -136,6 +136,7 @@ void  SynthPrepare()
   m_TriggerRelease1 = 1;  // Reset ENV1
   m_TriggerRelease2 = 1;  // Reset ENV2
   m_ExpressionLevel = 0;  // Mute audio output
+  m_ModulationLevel = (IntToFixedPt(1) * 50) / 100;  // in case no mod'n signal rx'd
   m_KeyVelocity = (IntToFixedPt(1) * 80) / 100;  // in case CV mode selected
 
   // Calculate reverb effect constants...
@@ -167,10 +168,10 @@ void  SynthNoteOn(uint8 noteNum, uint8 velocity)
   if (!m_NoteOn)    // Note OFF -- Initiate a new note...
   {
     SynthNoteChange(noteNum);  // Set OSC frequencies, etc
-
-    // A square-law curve is applied to velocity
     m_KeyVelocity = IntToFixedPt((int) velocity) / 128;  // normalized
-    m_KeyVelocity = MultiplyFixed(m_KeyVelocity, m_KeyVelocity);  // squared
+    // A square-law curve may be applied to velocity to approximate exponential
+    if (APPLY_VELOCITY_EXPL_CURVE)
+      m_KeyVelocity = MultiplyFixed(m_KeyVelocity, m_KeyVelocity);
     m_LegatoNoteChange = 0;    // Not a Legato event
     SynthTriggerAttack();
   }
@@ -188,15 +189,6 @@ void  SynthTriggerAttack()
   m_TriggerAttack2 = 1;
   m_TriggerContour = 1;
   m_NoteOn = TRUE;
-}
-
-
-void  SynthTriggerRelease()
-{
-  m_TriggerRelease1 = 1;
-  m_TriggerRelease2 = 1;
-  m_TriggerReset = 1;
-  m_NoteOn = FALSE;
 }
 
 
@@ -237,6 +229,33 @@ void  SynthNoteChange(uint8 noteNum)
 }
 
 
+/*
+ * Function:     End the note playing, if it matches the given note number.
+ *
+ * Entry args:   noteNum = MIDI standard note number of note to be ended.
+ *
+ * The function puts envelope shapers into the 'Release' phase. The note will be
+ * terminated by the synth process (B/G task) when the release time expires, or if
+ * a new note is initiated prior.
+ */
+void  SynthNoteOff(uint8 noteNum)
+{
+  noteNum &= 0x7F;
+  if (noteNum > 120)  noteNum -= 12;   // too high
+  if (noteNum < 12)   noteNum += 12;   // too low
+  if (noteNum == m_NotePlaying) SynthTriggerRelease();
+}
+
+
+void  SynthTriggerRelease()
+{
+  m_TriggerRelease1 = 1;
+  m_TriggerRelease2 = 1;
+  m_TriggerReset = 1;
+  m_NoteOn = FALSE;
+}
+
+
 // This function is provided for CV control mode to set oscillator pitch.
 //
 void  SynthSetOscFrequency(float fundamental_Hz)
@@ -257,24 +276,6 @@ void  SynthSetOscFrequency(float fundamental_Hz)
     oscStep = (int32) ((tableSize * oscFreq) / SAMPLE_RATE_HZ);
     m_OscStepInit[osc] = oscStep;
   }
-}
-
-
-/*
- * Function:     End the note playing, if it matches the given note number.
- *
- * Entry args:   noteNum = MIDI standard note number of note to be ended.
- *
- * The function puts envelope shapers into the 'Release' phase. The note will be
- * terminated by the synth process (B/G task) when the release time expires, or if
- * a new note is initiated prior.
- */
-void  SynthNoteOff(uint8 noteNum)
-{
-  noteNum &= 0x7F;
-  if (noteNum > 120)  noteNum -= 12;   // too high
-  if (noteNum < 12)   noteNum += 12;   // too low
-  if (noteNum == m_NotePlaying) SynthTriggerRelease();
 }
 
 
@@ -348,7 +349,7 @@ void   SynthModulation(unsigned data14)
 {
   if (data14 < (16 * 1024))
     m_ModulationLevel = (fixed_t) ((uint32) data14 << 6);
-  else   m_ModulationLevel = FIXED_MAX_LEVEL;
+  else  m_ModulationLevel = FIXED_MAX_LEVEL;
 }
 
 

@@ -8,14 +8,23 @@
 
 #include "common_def.h"
 
-#define FIRMWARE_VERSION  "1.9.6"
+#define FIRMWARE_VERSION  "2.0"
 
-#define USE_SAMD21_M0_MINI_MCU   FALSE   // Set TRUE to use Robotdyn M0-MINI board
+#define USE_SAMD21_M0_MINI_MCU     FALSE  // TRUE => Robotdyn SAMD21 M0-MINI board
 
-#define HOME_SCREEN_SYNTH_DESCR  "SAMD21 Synth"    // Text shown on Home screen (alt.1)
-//#define HOME_SCREEN_SYNTH_DESCR  "Voice Module"    // Text shown on Home screen (alt.2)
+// Other firmware build options -- set according to user preference...
+#define EEPROM_IS_INSTALLED        TRUE   // FALSE => EEPROM not installed!
+#define DEFAULT_MASTER_TUNING      0      // Master Tune parameter (-100 ~ +100 cents)
+#define APPLY_VELOCITY_EXPL_CURVE  FALSE  // TRUE => Apply "exponential" ampld curve
+#define LEGATO_ENABLED_ALWAYS      FALSE  // TRUE => Legato Mode always enabled
+#define USE_SPI_DAC_FOR_AUDIO      TRUE   // FALSE => Use MCU on-chip DAC (pin A0)
 
 //=======================================================================================
+#if (USE_SAMD21_M0_MINI_MCU)  // Robotdyn MCU board...
+#define HOME_SCREEN_SYNTH_DESCR  "Voice Module"  // 12 chars max.
+#else  // assume Adafruit ItsyBitsy M0 Express
+#define HOME_SCREEN_SYNTH_DESCR  "ItsyBitsy M0"  // 12 chars max.
+#endif
 
 #define CV_MODE_JUMPER              7    // CV Mode jumper (JP1) input pin
 #define TESTPOINT1                 13    // Scope test-point pin
@@ -27,7 +36,7 @@
 #define BUTTON_A_PIN                3    // Button [A] input (active low)
 #define GATE_INPUT                 19    // GATE input (digital, active High)
 
-#if USE_SAMD21_M0_MINI_MCU   // Pins D2 and D4 are reversed on RobotDyn MCU board!
+#if (USE_SAMD21_M0_MINI_MCU)  // Pins D2 and D4 are reversed on RobotDyn MCU board!
 #define BUTTON_B_PIN                2    // Button [B] input (active low)
 #define SPI_DAC_CS                  4    // DAC CS/ pin ID
 #else
@@ -35,7 +44,6 @@
 #define SPI_DAC_CS                  2 
 #endif
 
-#define USE_SPI_DAC_FOR_AUDIO    TRUE    // Always!
 #define WAVE_TABLE_SIZE          2048    // nunber of samples
 #define SAMPLE_RATE_HZ          32000    // typically 32,000 or 40,000 Hz
 #define MAX_OSC_FREQ_HZ         12000    // must be < 0.4 x SAMPLE_RATE_HZ
@@ -80,7 +88,7 @@
 #define OSC_MODN_SOURCE_VELO_POS    8    // Osc Ampld Mod'n by Velocity, normal(+)
 #define OSC_MODN_SOURCE_VELO_NEG    9    // Osc Ampld Mod'n by Velocity, invert(-)
 
-// Possible values for patch parameter: g_Patch.AmpldControlSource
+// Possible values for patch parameter: g_Patch.AmpControlMode
 #define AMPLD_CTRL_CONST_MAX        0    // Output ampld is constant (max. level)
 #define AMPLD_CTRL_CONST_LOW        1    // Output ampld is constant (lower level)
 #define AMPLD_CTRL_ENV1_VELO        2    // Output ampld control by ENV1 * Velocity
@@ -132,9 +140,10 @@ typedef struct table_of_configuration_params
   uint8   PitchBendMode;            // Pitch Bend Control Mode (0: disabled)
   uint8   PitchBendRange;           // Pitch Bend range, semitones (1..12)
   uint8   ReverbMix_pc;             // Reverb. wet/dry mix (0..100 %)
-  uint8   PresetLastSelected;       // Preset Last Selected (0..99)
+  uint8   PresetLastSelected;       // Preset Last Selected (0..127)
   uint8   Pitch_CV_BaseNote;        // Lowest note in Pitch CV range (MIDI #)
   bool    Pitch_CV_Quantize;        // Quantize CV pitch to nearest semitone
+  bool    CV_ModeAutoSwitch;        // CV Control Mode enabled by GATE+ signal
   bool    CV3_is_Velocity;          // CV3 input controls Velocity (with ENV1)
   short   CV1_FullScale_mV;         // CV1 input calibration constant (mV)
   short   MasterTuneOffset;         // Pitch fine-tuning (+/-100 cents)
@@ -188,12 +197,13 @@ extern  const   uint16  g_MixerInputLevel[];
 
 extern  uint8  g_MidiChannel;        // 1..16  (16 = broadcast, omni)
 extern  uint8  g_MidiMode;           // OMNI_ON_MONO or OMNI_OFF_MONO
-extern  uint8  g_GateState;          // GATE signal state (software)
+extern  uint8  g_GateState;          // GATE signal state (de-bounced)
 extern  bool   g_DisplayEnabled;     // True if OLED is enabled
 extern  bool   g_CVcontrolMode;      // True if CV pitch control enabled
 extern  bool   g_MidiRxSignal;       // Signal MIDI message received
 extern  bool   g_EEpromFaulty;       // True if EEPROM error or not fitted
-extern  int    g_DebugData; 
+extern  uint8  g_LegatoMode;         // Switch ON or OFF using MIDI CC68 msg
+extern  int    g_DebugData;
 
 extern  const  float  g_NoteFrequency[];
 
