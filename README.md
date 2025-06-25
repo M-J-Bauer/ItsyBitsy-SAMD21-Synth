@@ -39,5 +39,6 @@ Steps to compile and "upload" the firmware:
 ^ Sometimes it is necessary to retry an upload more than once, or to select (again) the board COM port, 
   and/or to "double click" the MCU reset button to enter the bootloader. This is "normal" for Arduino!
 
-![Coded-By-Humans-NO-AI-Icon-ss](https://github.com/user-attachments/assets/41272255-fb45-41ea-8538-bb834162eeb7)
+![Coded-by-a-Human-no-AI](https://github.com/user-attachments/assets/e2479440-66a7-4c50-b6dd-358b75b23dfc)
+
 
