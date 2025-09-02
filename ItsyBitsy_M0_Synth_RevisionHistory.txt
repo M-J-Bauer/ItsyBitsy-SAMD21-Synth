@@ -128,12 +128,12 @@ and CV control when a MIDI Note-On msg or GATE signal is input (resp.).
 If it is set 'OFF', CV control is disabled, allowing MIDI control only.
 
 Modified CV input service routine. CV1 ADC readings are filtered (1st-order
-IIR with K = 1/16) which causes a delay, hence unwanted 'glissando'.
+IIR with K = 1/16) which caused a delay, hence unwanted 'glissando'.
 The filter output variable is now reset to the instantaneous ADC reading every
 time the GATE signal transitions from Low to High, to eliminate the annoying
 glide from the last note playing to the new note.
 
-Modified Start-up screen: 'Defualt' option (button B) not shown if EEPROM is 
+Modified Start-up screen: 'Default' option (button B) not shown if EEPROM is 
 faulty or not installed.
 Added a firmware build option: #define EEPROM_IS_INSTALLED  {TRUE or FALSE}
 Set this symbol FALSE if EEPROM is not installed so that the error message
@@ -141,6 +141,45 @@ Set this symbol FALSE if EEPROM is not installed so that the error message
 message 'No EEPROM support' will be displayed.
 
 Refined instrument sounds in some presets. Total presets: 32.
+
+v2.1  31-MAY-2025 : (wip)	
+`````````````````````````
+Swapped presets 14 and 29.  #29 is now 'Melody Organ #2' to suit EWI usage.
+
+v2.2  01-SEP-2025
+`````````````````
+Fixed: ADC readings preceded by a "dummy" read. (1st unreliable - discarded)
+
+Fixed: MIDI CC73: Set ENV Attack Time -- data unit is 10ms (not 100ms).
+Fixed: MIDI CC74: Set ENV Peak-Hold Time -- data unit is 10ms (not 100ms).
+
+Added MIDI messages CC100 and CC38 to set pitch bend range and fine tuning.
+
+Added MIDI message type CC80 to set Osc. Mixer levels.
+Data byte MSD = Osc number (0..5), LSD = Step value (0..15).
+
+Added LED drive on pin D5 = active (high) when note playing (gated).
+
+Modified PITCH BEND setup screen to show bend range and mode (on/off).
+If bend range is set to 0, pitch bend is disabled (mode = OFF).
+
+Modified PRESETS (select) screen to group Presets into banks of 16 each.
+Button A advances selection to next bank.
+
+Revised all code files to use Arduino data types (uint8_t, uint16_t, etc).
+
+
+
+--------------------------------------------------------------------------------
+
+To Do:  
+```````
+> Refine preset 31 "Deep Sax" - make similar to Bass Overdrive, add osc AM.
+
+> 
+
+> 
+  Replace 'Cancel' button with 'Bank >' button.
 
 
 ________________________________________________________________________________
