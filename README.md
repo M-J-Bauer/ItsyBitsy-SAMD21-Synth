@@ -24,17 +24,17 @@ and click 'INSTALL'. Then choose Type = "Installed". The library should then app
 
 Steps to compile and "upload" the firmware:
 
-    > Download the 7 Sigma-6 source files from the repository here.
+    > Download the Sigma-6 source files from the repository here.
     > Create a project folder in your computer local drive named "ItsyBitsy_M0_synth".
     > Copy the downloaded source files into the project folder.
     > Double-click on the file "ItsyBitsy_M0_synth.ino" -- this should open Arduino IDE and load
       all source files into the editor window. (Alternatively, open Arduino IDE first, then open the
       source file "ItsyBitsy_M0_synth.ino".)
-    > Make any required changes to the source code to suit your preferences.*
+    > Make any required changes to the source code to suit your configuration.*
     > Compile the code and upload the firmware to your Sigma-6 module(s).^
 
-* If you are using the RobotDyn 'SAMD21-M0-Mini' board, edit the #define on line 13 in the header file "M0-synth-def.h".
-  (The Robo M0-Mini board is not fully I/O compatible with the Adafruit M0.)
+* Edit any applicable #define lines in the header file "M0-synth-def.h" (see comments therein).
+  (The 'Robotdyn' M0-Mini board is not fully I/O compatible with the Adafruit M0 or Arduino Zero.)
 
 ^ Sometimes it is necessary to retry an upload more than once, or to select (again) the board COM port, 
   and/or to "double click" the MCU reset button to enter the bootloader. This is "normal" for Arduino!
