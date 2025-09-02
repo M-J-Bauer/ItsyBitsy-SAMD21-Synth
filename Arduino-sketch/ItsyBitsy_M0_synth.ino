@@ -9,11 +9,13 @@
  *
  * Licence:    Open Source (Unlicensed) -- free to copy, distribute, modify
  *
- * Version:    2.0  (See Revision History file)
+ * Version:    2.3  (See Revision History file)
  */
 #include <fast_samd21_tc3.h>
 #include <Wire.h>
 #include "m0_synth_def.h"
+
+#define FIRMWARE_VERSION  "2.2"
 
 #define EEPROM_WRITE_INHIBIT()   {}    // Not used... WP tied to GND
 #define EEPROM_WRITE_ENABLE()    {}
@@ -26,7 +28,7 @@ ConfigParams_t  g_Config;      // structure holding config param's
 
 uint8_t  g_MidiChannel;        // 1..16  (16 = broadcast, omni)
 uint8_t  g_MidiMode;           // OMNI_ON_MONO or OMNI_OFF_MONO
-bool     g_MidiParamPending;   // Reserved Param Data Entry msg expected
+uint8_t  g_MidiRegisParam;     // Registered Param # (0: PB range, 1: Fine Tuning)
 uint8_t  g_GateState;          // GATE signal state (software)
 bool     g_DisplayEnabled;     // True if OLED display enabled
 bool     g_CVcontrolMode;      // True if CV control enabled
@@ -52,8 +54,8 @@ void  setup()
   pinMode(BUTTON_A_PIN, INPUT_PULLUP);
   pinMode(BUTTON_B_PIN, INPUT_PULLUP);
 
-  pinMode(TESTPOINT1, OUTPUT);  // scope test-point TP1
-  pinMode(TESTPOINT2, OUTPUT);  // scope test-point TP2
+  pinMode(TESTPOINT1, OUTPUT);  // scope test-point TP1 (ISR)
+  pinMode(TESTPOINT2, OUTPUT);  // scope test-point TP2 (GATE)
   pinMode(SPI_DAC_CS, OUTPUT);
   pinMode(GATE_INPUT, INPUT);
   digitalWrite(SPI_DAC_CS, HIGH);  // Set DAC CS High (idle)
@@ -146,7 +148,7 @@ void  loop()
  * Note:         If the selected preset patch parameter 'Ampld Control Mode' is set to
  *               Expression, then Legato Mode will be enabled; otherwise disabled.
  */
-void  PresetSelect(uint8 preset)
+void  PresetSelect(uint8_t preset)
 {
   if (preset < GetNumberOfPresets())
   {
@@ -185,15 +187,15 @@ void  PresetSelect(uint8 preset)
  */
 void  MidiInputService()
 {
-  static  uint8  midiMessage[MIDI_MSG_MAX_LENGTH];
+  static  uint8_t  midiMessage[MIDI_MSG_MAX_LENGTH];
   static  short  msgBytesExpected;
   static  short  msgByteCount;
   static  short  msgIndex;
-  static  uint8  msgStatus;     // last command/status byte rx'd
+  static  uint8_t  msgStatus;     // last command/status byte rx'd
   static  bool   msgComplete;   // flag: got msg status & data set
 
-  uint8   msgByte;
-  uint8   msgChannel;  // 1..16 !
+  uint8_t   msgByte;
+  uint8_t   msgChannel;  // 1..16 !
   BOOL    gotSysExMsg = FALSE;
 
   if (Serial1.available() > 0)  // unread byte(s) available in Rx buffer
@@ -262,20 +264,21 @@ void  MidiInputService()
     SynthNoteOn(g_NotePending, g_VeloPending);
     g_NotePlaying = g_NotePending;
     g_NotePending = 0;  // done
+    digitalWrite(TESTPOINT2, HIGH);  // "Gate" LED on
   }
 }
 
 
-void  ProcessMidiMessage(uint8 *midiMessage, short msgLength)
+void  ProcessMidiMessage(uint8_t *midiMessage, short msgLength)
 {
-  static uint8  noteKeyedFirst;
-  uint8  statusByte = midiMessage[0] & 0xF0;
-  uint8  noteNumber = midiMessage[1];  // New note keyed
-  uint8  velocity = midiMessage[2];
-  uint8  program = midiMessage[1];
-  uint8  leverPosn_Lo = midiMessage[1];  // modulation
-  uint8  leverPosn_Hi = midiMessage[2];
-  int16  bipolarPosn;
+  static uint8_t  noteKeyedFirst;
+  uint8_t  statusByte = midiMessage[0] & 0xF0;
+  uint8_t  noteNumber = midiMessage[1];  // New note keyed
+  uint8_t  velocity = midiMessage[2];
+  uint8_t  program = midiMessage[1];
+  uint8_t  leverPosn_Lo = midiMessage[1];  // modulation
+  uint8_t  leverPosn_Hi = midiMessage[2];
+  short  bipolarPosn;
   bool   executeNoteOff = FALSE;
   bool   executeNoteOn = FALSE;
 
@@ -305,7 +308,7 @@ void  ProcessMidiMessage(uint8 *midiMessage, short msgLength)
     }
     case PITCH_BEND_CMD:
     {
-      bipolarPosn = ((int16)(leverPosn_Hi << 7) | leverPosn_Lo) - 0x2000;
+      bipolarPosn = ((short)(leverPosn_Hi << 7) | leverPosn_Lo) - 0x2000;
       SynthPitchBend(bipolarPosn);
       break;
     }
@@ -325,22 +328,28 @@ void  ProcessMidiMessage(uint8 *midiMessage, short msgLength)
       {
         SynthNoteOff(noteKeyedFirst);
         noteKeyedFirst = 0;
+        digitalWrite(TESTPOINT2, LOW);  // "Gate" LED off
       }
       if (noteNumber == g_NotePlaying)
       {
         if (noteKeyedFirst)
         {
-          SynthNoteOn(noteKeyedFirst, velocity);  // Change pitch (no attack)
+          SynthNoteChange(noteKeyedFirst);  // Change pitch (no attack)
           g_NotePlaying = noteKeyedFirst;
         }
         else  // only one note is keyed
         {
           SynthNoteOff(g_NotePlaying);
           g_NotePlaying = 0;
+          digitalWrite(TESTPOINT2, LOW);  // "Gate" LED off
         }
       }
     }
-    else  SynthNoteOff(noteNumber);  // Non-Legato
+    else  
+    {
+      SynthNoteOff(noteNumber);  // Non-Legato
+      digitalWrite(TESTPOINT2, LOW);  // "Gate" LED off
+    }
   }
 
   if (executeNoteOn)
@@ -350,6 +359,7 @@ void  ProcessMidiMessage(uint8 *midiMessage, short msgLength)
       SynthNoteOn(noteNumber, velocity);
       if (g_NotePlaying == 0) noteKeyedFirst = noteNumber;
       g_NotePlaying = noteNumber;
+      digitalWrite(TESTPOINT2, HIGH);  // "Gate" LED on
     }
     else if (g_NotePlaying)  // Non-Legato
     {
@@ -363,17 +373,19 @@ void  ProcessMidiMessage(uint8 *midiMessage, short msgLength)
     {
       SynthNoteOn(noteNumber, velocity);
       g_NotePlaying = noteNumber;
+      digitalWrite(TESTPOINT2, HIGH);  // "Gate" LED on
     }
   }
 }
 
 
-void  ProcessControlChange(uint8 *midiMessage)
+void  ProcessControlChange(uint8_t *midiMessage)
 {
-  static uint8  modulationHi = 0;    // High byte of CC data (7 bits)
-  static uint8  expressionHi = 0;    // High byte of CC data (7 bits)
-  uint8  CCnumber = midiMessage[1];  // Control Change 'register' number
-  uint8  dataByte = midiMessage[2];  // Control Change data value
+  static uint8_t  modulationHi = 0;    // High byte of CC data (7 bits)
+  static uint8_t  expressionHi = 0;    // High byte of CC data (7 bits)
+  uint8_t  CCnumber = midiMessage[1];  // Control Change 'register' number
+  uint8_t  dataByte = midiMessage[2];  // Control Change data value
+  uint8_t  oscnum;
   int    data14;
 
   if (CCnumber == 2 || CCnumber == 7 || CCnumber == 11)  // High byte
@@ -398,20 +410,17 @@ void  ProcessControlChange(uint8 *midiMessage)
     data14 = (((int) modulationHi) << 7) + dataByte;
     SynthModulation(data14);
   }
-  else if (CCnumber == 100)  // Registered Parameter Low Byte
+  // The following CC numbers are to set synth Configuration parameters:
+  // ```````````````````````````````````````````````````````````````````
+  else if (CCnumber == 100)  // MIDI "Registered Parameter" ID
   {
-    if (dataByte == 1) g_MidiParamPending = TRUE;  // Reg.Param. 01 is Master Tune
+    g_MidiRegisParam = dataByte; 
   }
-  // The following CC numbers are to set synth Config parameters:
-  // ````````````````````````````````````````````````````````````````````````
-  else if (CCnumber == 38)  // Set Master Tune param. (= Data Entry LSB)
+  else if (CCnumber == 38)  // Parameter "Data Entry" (LSB) message
   {
-    if (g_MidiParamPending)
-    {
-      g_Config.MasterTuneOffset = dataByte - 64;  // Offset by 64
-      StoreConfigData();
-      g_MidiParamPending = FALSE;
-    }
+    if (g_MidiRegisParam == 0x00 && dataByte <= 12) g_Config.PitchBendRange = dataByte;
+    if (g_MidiRegisParam == 0x01) g_Config.FineTuning_cents = (short)dataByte - 64;
+    StoreConfigData();
   }
   else if (CCnumber == 68)  // Set Legato Keying mode on/off
   {
@@ -445,7 +454,7 @@ void  ProcessControlChange(uint8 *midiMessage)
     StoreConfigData();
   }
   // The following CC numbers are to set synth Patch parameters:
-  // ````````````````````````````````````````````````````````````````````````
+  // ```````````````````````````````````````````````````````````
   else if (CCnumber == 70)  // Set osc. mixer output gain (unit = 0.1)
   {
     if (dataByte != 0)  g_Patch.MixerOutGain_x10 = dataByte;
@@ -456,35 +465,44 @@ void  ProcessControlChange(uint8 *midiMessage)
   }
   else if (CCnumber == 72)  // Set Ampld ENV Release Time (unit = 100ms)
   {
-    if (dataByte != 0 && dataByte <= 100)  g_Patch.EnvReleaseTime = (uint16) dataByte * 100;
+    if (dataByte != 0 && dataByte <= 100)  
+      g_Patch.EnvReleaseTime = (uint16_t) dataByte * 100;
   }
-  else if (CCnumber == 73)  // Set Ampld ENV Attack Time (unit = 100ms)
+  else if (CCnumber == 73)  // Set Ampld ENV Attack Time (unit = 10ms)
   {
-    if (dataByte != 0 && dataByte <= 100)  g_Patch.EnvAttackTime = (uint16) dataByte * 100;
+    if (dataByte != 0 && dataByte <= 100)  
+      g_Patch.EnvAttackTime = (uint16_t) dataByte * 10;
   }
-  else if (CCnumber == 74)  // Set Ampld ENV Peak Hold Time (unit = 100ms)
+  else if (CCnumber == 74)  // Set Ampld ENV Peak Hold Time (unit = 10ms)
   {
-    if (dataByte <= 100)  g_Patch.EnvHoldTime = (uint16) dataByte * 100;
+    if (dataByte <= 100)  g_Patch.EnvHoldTime = (uint16_t) dataByte * 10;
   }
   else if (CCnumber == 75)  // Set Ampld ENV Deacy Time (unit = 100ms)
   {
-    if (dataByte != 0 && dataByte <= 100)  g_Patch.EnvDecayTime = (uint16) dataByte * 100;
+    if (dataByte != 0 && dataByte <= 100)  
+      g_Patch.EnvDecayTime = (uint16_t) dataByte * 100;
   }
   else if (CCnumber == 76)  // Set Ampld ENV Sustain Level (unit = 1%)
   {
-    if (dataByte <= 100)  g_Patch.EnvSustainLevel = (uint16) dataByte;
+    if (dataByte <= 100)  g_Patch.EnvSustainLevel = (uint16_t) dataByte;
   }
   else if (CCnumber == 77)  // Set LFO frequency (data = Hz, max 50)
   {
-    if (dataByte != 0 && dataByte <= 50)  g_Patch.LFO_Freq_x10 = (uint16) dataByte * 10;
+    if (dataByte != 0 && dataByte <= 50)  
+      g_Patch.LFO_Freq_x10 = (uint16_t) dataByte * 10;
   }
   else if (CCnumber == 78)  // Set LFO ramp time (unit = 100ms)
   {
-    if (dataByte <= 100)  g_Patch.LFO_RampTime = (uint16) dataByte * 100;
+    if (dataByte <= 100)  g_Patch.LFO_RampTime = (uint16_t) dataByte * 100;
   }
   else if (CCnumber == 79)  // Set LFO FM (vibrato) depth (unit = 5 cents)
   {
-    if (dataByte <= 120)  g_Patch.LFO_FM_Depth = (uint16) dataByte * 5;
+    if (dataByte <= 120)  g_Patch.LFO_FM_Depth = (uint16_t) dataByte * 5;
+  }
+  else if (CCnumber == 80)  // Set Osc. Mixer Input Level
+  {
+    oscnum = (dataByte >> 4) % 6;  // MS digit (0..5)
+    g_Patch.MixerInputStep[oscnum] = dataByte & 0x0F;  // LS digit (0..15)
   }
   // Mode Change messages
   // ````````````````````````````````````````````````````````````````````````
@@ -501,7 +519,7 @@ void  ProcessControlChange(uint8 *midiMessage)
  * information about a Bauer MIDI controller (e.g. REMI) connected to the MIDI IN port.
  * Byte 3 of the message is a code to identify the type of message content.
  */
-void  ProcessMidiSystemExclusive(uint8 *midiMessage, short msgLength)
+void  ProcessMidiSystemExclusive(uint8_t *midiMessage, short msgLength)
 {
   if (midiMessage[1] == SYS_EXCL_REMI_ID)  // "Manufacturer ID" match
   {
@@ -510,10 +528,10 @@ void  ProcessMidiSystemExclusive(uint8 *midiMessage, short msgLength)
 }
 
 
-int  MIDI_GetMessageLength(uint8 statusByte)
+int  MIDI_GetMessageLength(uint8_t statusByte)
 {
-  uint8  command = statusByte & 0xF0;
-  uint8  length = 0;  // assume unsupported or unknown msg type
+  uint8_t  command = statusByte & 0xF0;
+  uint8_t  length = 0;  // assume unsupported or unknown msg type
 
   if (command == PROGRAM_CHANGE_CMD || command == CHAN_PRESSURE_CMD)  length = 2;
   if (command == NOTE_ON_CMD || command == NOTE_OFF_CMD
@@ -546,9 +564,9 @@ int  MIDI_GetMessageLength(uint8 statusByte)
  */
 void  CVinputService()
 {
-  static uint32 gateLeadingEdge;   // Captured time of GATE input Low-to-High (ms)
-  static uint32 gateTrailingEdge;  // Captured time of GATE input High-to-Low (ms)
-  static uint8 callCount;
+  static uint32_t gateLeadingEdge;   // Captured time of GATE input Low-to-High (ms)
+  static uint32_t gateTrailingEdge;  // Captured time of GATE input High-to-Low (ms)
+  static uint8_t callCount;
   static bool resetCV1Filter;
   static bool attackPending;   // While true, waiting 5ms before trigger attack
   static int CV1readingFilt;   // CV1 reading smoothed (filtered) [16:16b fixed-pt]
@@ -560,7 +578,7 @@ void  CVinputService()
   int  dataValue14b, FM_depth_cents;
   int  CV1Bound, deltaCV1;  // mV
   float  freqBound, freqStep, deltaFreq;  // Hz
-  uint8  gateInput = (digitalRead(GATE_INPUT) == LOW) ? HIGH : LOW;
+  uint8_t  gateInput = (digitalRead(GATE_INPUT) == LOW) ? HIGH : LOW;
 
   if (g_GateState == LOW && gateInput == HIGH)  // GATE leading edge
   {
@@ -568,6 +586,7 @@ void  CVinputService()
     {
       gateLeadingEdge = millis();
       g_GateState = HIGH;
+      digitalWrite(TESTPOINT2, HIGH);  // "Gate" LED on
       if (g_Config.CV_ModeAutoSwitch) 
       {
         g_CVcontrolMode = TRUE;
@@ -589,6 +608,7 @@ void  CVinputService()
     {
       gateTrailingEdge = millis();
       g_GateState = LOW;
+      digitalWrite(TESTPOINT2, LOW);  // "Gate" LED off
       if (g_Config.CV_ModeAutoSwitch) SynthTriggerRelease();
     }
   }
@@ -597,6 +617,7 @@ void  CVinputService()
   
   if ((callCount & 1) == 0)  // on every alternate call...
   {
+    analogRead(A1);  // discard 1st reading after mux input change
     inputSignal_mV = ((int) analogRead(A1) * g_Config.CV1_FullScale_mV) / 4095;
 	  if (resetCV1Filter) CV1readingFilt = inputSignal_mV << 16;  // convert to fixed-pt
     CV1readingFilt -= CV1readingFilt >> 4;   // Apply 1st-order IIR filter, K = 1/16
@@ -624,6 +645,7 @@ void  CVinputService()
   }
   if (callCount == 1)
   {
+    analogRead(A2);  // discard
     inputSignal_mV = ((int) analogRead(A2) * 5100) / 4095;
     if (abs(inputSignal_mV - CV2readingPrev) > 10)  // > 0.2% change
     {
@@ -635,6 +657,7 @@ void  CVinputService()
   }
   if (callCount == 3)
   {
+    analogRead(A3);  // discard
     inputSignal_mV = ((int) analogRead(A3) * 5100) / 4095;
     if (abs(inputSignal_mV - CV3readingPrev) > 10)  // > 0.2% change
     {
@@ -646,6 +669,7 @@ void  CVinputService()
   }
   if (callCount == 5)
   {
+    analogRead(A4);  // discard
     inputSignal_mV = ((int) analogRead(A4) * 5100) / 4095;
     if ((g_Config.VibratoCtrlMode == VIBRATO_BY_CV_AUXIN)
     &&  (abs(inputSignal_mV - CV4readingPrev) > 10 ))  // > 0.2% change
@@ -680,15 +704,15 @@ void  DefaultConfigData(void)
   g_Config.CV_ModeAutoSwitch = TRUE;
   g_Config.CV3_is_Velocity = FALSE;
   g_Config.CV1_FullScale_mV = 5100;    // 5100 => uncalibrated
-  g_Config.MasterTuneOffset = DEFAULT_MASTER_TUNING;
+  g_Config.FineTuning_cents = 0;       // signed value (+/-100)
   g_Config.EEpromCheckWord = 0xABCDEF00;  // last entry
 }
 
 void  StoreConfigData()
 {
-  uint8  promAddr = 0;
+  uint8_t  promAddr = 0;
   short  bytesToCopy = (short) sizeof(g_Config);
-  uint8  *pData = (uint8 *) &g_Config;
+  uint8_t  *pData = (uint8_t *) &g_Config;
   int    errorCode;
 
   while (bytesToCopy > 0)
@@ -699,12 +723,12 @@ void  StoreConfigData()
   }
 }
 
-uint8  FetchConfigData()
+uint8_t  FetchConfigData()
 {
-  uint8  promAddr = 0;
+  uint8_t  promAddr = 0;
   short  bytesToCopy = (short) sizeof(g_Config);
-  uint8  *pData = (uint8 *) &g_Config;
-  uint8  count = 0;
+  uint8_t  *pData = (uint8_t *) &g_Config;
+  uint8_t  count = 0;
 
   while (bytesToCopy > 0)
   {
@@ -743,7 +767,7 @@ bool  EEpromACKresponse(void)
  */
 int  EEpromWriteData(uint8_t *pData, uint8_t promBlock, uint8_t promAddr, int nbytes)
 {
-  uint16  npolls = 1000;  // time-out = 25ms @ 400kHz SCK
+  uint16_t  npolls = 1000;  // time-out = 25ms @ 400kHz SCK
   int   errcode = 0;
 
   EEPROM_WRITE_ENABLE();   // Set WP Low
@@ -967,7 +991,7 @@ const  PatchParamTable_t  g_PresetPatch[] =
     7, 0,                           // Mixer Gain x10, Limit %FS
   },
   {
-    "Hammond Orgessence",           // 12
+    "Hammondish Organ",             // 12
     { 1, 3, 4, 5, 7, 8 },           // Osc Freq Mult index (0..11)
     { 0, 0, 0, 0, 0, 3 },           // Osc Ampld Modn source (0..7)
     { 0, -7, 12, 4, 0, 3 },         // Osc Detune cents (+/-600)
@@ -991,15 +1015,15 @@ const  PatchParamTable_t  g_PresetPatch[] =
     7, 0,                           // Mixer Gain x10, Limit %FS
   },
   {
-    "Bauer Organ #2",               // 14
-    { 1, 3, 4, 5, 8, 0 },           // Osc Freq Mult index (0..11)
-    { 0, 0, 0, 0, 3, 0 },           // Osc Ampld Modn src (0..9)
-    { 0, 4, -4, 3, -2, 3 },         // Osc Detune, cents (-600..+600)
-    { 13, 13, 10, 12, 14, 12 },     // Mixer Input levels (0..16)
-    20, 20, 400, 70, 300, 2,        // Amp Env (A-H-D-S-R), Amp Mode
+    "Meditation Pipe",              // 14  (* todo:  Add AM using Contour *)
+    { 1, 4, 6, 7, 8, 10 },          // Osc Freq Mult index (0..11)
+    { 0, 0, 0, 0, 0, 6 },           // Osc Ampld Modn src (0..9) <== todo
+    { 0, -5, 0, 4, 0, 0 },          // Osc Detune cents (+/-600)
+    { 13, 14, 0, 9, 10, 9 },        // Osc Mixer levels (0..16)
+    50, 0, 200, 80, 200, 2,         // Amp Env (A-H-D-S-R), Amp Mode
     5, 20, 600, 40,                 // Contour Env (S-D-R-H)
-    500, 50,                        // ENV2: Decay, Sus %
-    70, 500, 30, 0,                 // LFO: Hz x10, Ramp, FM%, AM%
+    100, 50,                        // ENV2: Dec, Sus %
+    70, 500, 30, 0,                 // LFO: Hz x10, Ramp, FM %, AM %
     7, 0,                           // Mixer Gain x10, Limit %FS
   },
   {
@@ -1021,7 +1045,7 @@ const  PatchParamTable_t  g_PresetPatch[] =
     { 0, 0, 0, 1, 2, 1 },           // Osc Ampld Modn src (0..9)
     { 3, -3, 0, -3, 3, -3 },        // Osc Detune cents (+/-600)
     { 13, 12, 13, 8, 9, 11 },       // Osc Mixer levels (0..16)
-    30, 0, 10, 70, 500, 2,          // Amp Env (A-H-D-S-R), Amp Mode
+    30, 0, 10, 80, 500, 2,          // Amp Env (A-H-D-S-R), Amp Mode
     10, 50, 300, 90,                // Contour Env (S-D-R-H)
     500, 50,                        // ENV2: Dec, Sus %
     70, 500, 10, 55,                // LFO: Hz x10, Ramp, FM %, AM %
@@ -1142,7 +1166,7 @@ const  PatchParamTable_t  g_PresetPatch[] =
     { 0, 0, 0, 0, 0, 0 },           // Osc Ampld Modn src (0..9) <== todo
     { 0, 0, 0, 0, 0, 0 },           // Osc Detune cents (+/-600)
     { 15, 9, 6, 0, 0, 5 },          // Osc Mixer levels (0..16)
-    30, 0, 5, 100, 300, 3,          // Amp Env (A-H-D-S-R), Amp Mode
+    50, 0, 200, 80, 200, 3,         // Amp Env (A-H-D-S-R), Amp Mode
     0, 50, 300, 100,                // Contour Env (S-D-R-H)
     500, 50,                        // ENV2: Dec, Sus %
     50, 500, 15, 0,                 // LFO: Hz x10, Ramp, FM %, AM %
@@ -1154,7 +1178,7 @@ const  PatchParamTable_t  g_PresetPatch[] =
     { 0, 0, 0, 0, 0, 0 },           // Osc Ampld Modn src (0..9)
     { 6, 5, 4, -6, -5, -4 },        // Osc Detune cents (+/-600)
     { 13, 10, 10, 13, 10, 10 },     // Osc Mixer levels (0..16)
-    30, 0, 200, 100, 200, 3,        // Amp Env (A-H-D-S-R), Amp Mode
+    30, 0, 200, 80, 200, 3,         // Amp Env (A-H-D-S-R), Amp Mode
     5, 20, 500, 95,                 // Contour Env (S-D-R-H)
     500, 50,                        // ENV2: Dec, Sus %
     50, 500, 15, 0,                 // LFO: Hz x10, Ramp, FM %, AM %
@@ -1173,15 +1197,15 @@ const  PatchParamTable_t  g_PresetPatch[] =
     10, 0,                          // Mixer Gain x10, Limit %FS
   },
   {
-    "Meditation Pipe",              // 29  (* Add AM using exprn &/or mod'n *)
-    { 1, 4, 6, 7, 8, 10 },          // Osc Freq Mult index (0..11)
-    { 0, 0, 0, 0, 0, 6 },           // Osc Ampld Modn src (0..9) <== todo
-    { 0, -5, 0, 4, 0, 0 },          // Osc Detune cents (+/-600)
-    { 13, 14, 0, 9, 10, 9 },        // Osc Mixer levels (0..16)
-    10, 0, 400, 100, 300, 3,        // Amp Env (A-H-D-S-R), Amp Mode
+    "Melody Organ #2",              // 29  (aka 'Bauer Organ #2')
+    { 1, 3, 4, 5, 8, 0 },           // Osc Freq Mult index (0..11)
+    { 0, 0, 0, 0, 3, 0 },           // Osc Ampld Modn src (0..9)
+    { 0, 4, -4, 3, -2, 3 },         // Osc Detune, cents (-600..+600)
+    { 13, 13, 10, 12, 14, 12 },     // Mixer Input levels (0..16)
+    20, 20, 400, 70, 300, 3,        // Amp Env (A-H-D-S-R), Amp Mode
     5, 20, 600, 40,                 // Contour Env (S-D-R-H)
-    100, 50,                        // ENV2: Dec, Sus %
-    70, 500, 30, 0,                 // LFO: Hz x10, Ramp, FM %, AM %
+    500, 50,                        // ENV2: Decay, Sus %
+    70, 500, 30, 0,                 // LFO: Hz x10, Ramp, FM%, AM%
     7, 0,                           // Mixer Gain x10, Limit %FS
   },
   {
@@ -1203,7 +1227,7 @@ const  PatchParamTable_t  g_PresetPatch[] =
     { 5, 0, 5, 0, 5, 5 },           // Osc Ampld Modn source (0..9)
     { 0, 0, 0, 0, 0, 0 },           // Osc Detune, cents (+/-600)
     { 9, 10, 13, 0, 13, 12 },       // Osc Mixer level/step (0..16)
-    70, 0, 200, 70, 200, 3,         // Ampld Env (A-H-D-S-R), Amp Mode
+    70, 0, 200, 80, 200, 3,         // Ampld Env (A-H-D-S-R), Amp Mode
     0, 50, 300, 100,                // Contour Env (S-D-R-H)
     500, 50,                        // ENV2: Decay/Rel, Sus %
     50, 500, 20, 0,                 // LFO: Hz x10, Ramp, FM %, AM %

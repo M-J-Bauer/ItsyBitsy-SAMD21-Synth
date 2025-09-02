@@ -12,25 +12,25 @@
 #include <SPI.h>
 #include "m0_synth_def.h"
 
-// Functions "private" within this source file ...
-//
-void   AmpldEnvelopeGenerator();
-void   TransientEnvelopeGen();
-void   ContourGenerator();
-void   AudioLevelController();
-void   OscAmpldModulation();
-void   OscFreqModulation();
-void   LowFrequencyOscillator();
-void   VibratoRampGenerator();
+// Macros for manipulating 32-bit (12:20) fixed-point numbers, type fixed_t (long).
+// Integer part:      12 bits, signed, max. range +/-2047
+// Fractional part:   20 bits, precision: +/-0.000001 (approx.)
+#define IntToFixedPt(i)     (i << 20)                    // convert int to fixed-pt
+#define FloatToFixed(r)     (fixed_t)(r * 1048576)       // convert float (r) to fixed-pt
+#define FixedToFloat(z)     ((float)z / 1048576)         // convert fixed-pt (z) to float
+#define IntegerPart(z)      (z >> 20)                    // get integer part of fixed-pt
+#define FractionPart(z,n)   ((z & 0xFFFFF) >> (20 - n))  // get n MS bits of fractional part
+#define MultiplyFixed(v,w)  (((int64_t)v * w) >> 20)     // product of two fixed-pt numbers
 
 fixed_t  ReverbDelayLine[REVERB_DELAY_MAX_SIZE];  // fixed-point samples
 
 PatchParamTable_t  g_Patch;     // active patch parameters
 
-static int32    m_OscStepInit[6];         // Osc phase step values at Note-On
-static int32    m_OscStepDetune[6];       // Osc phase step values with de-tune applied
+static long     m_OscStepInit[6];         // Osc phase step values at Note-On
+static long     m_OscStepDetune[6];       // Osc phase step values with de-tune applied
 static bool     m_OscMuted[6];            // True if osc freq > 0.4 x SAMPLE_RATE_HZ
-static int32    m_LFO_Step;               // LFO "phase step" (fixed-point format)
+static long     m_LFO_PhaseAngle;         // LFO "phase angle" (24:8 bit fixed-point)
+static long     m_LFO_Step;               // LFO "phase step" (fixed-point format)
 static fixed_t  m_LFO_output;             // LFO output signal, normalized, bipolar (+/-1.0)
 static fixed_t  m_RampOutput;             // Vibrato Ramp output level,  normalized (0..+1)
 static fixed_t  m_ExpressionLevel;        // Expression level, normalized, unipolar (0..+1)
@@ -42,29 +42,29 @@ static fixed_t  m_ENV2_Output;            // Envelope Generator #2 output  (0 ~ 
 static fixed_t  m_ContourOutput;          // Contour EG output, normalized (0 ~ 1.0)
 static fixed_t  m_KeyVelocity;            // Note-On Velocity, normalized  (0 ~ 1.0)
 static bool     m_TriggerAttack1;         // Signal to put ENV1 into attack
-static bool     m_TriggerRelease1;         // Signal to put ENV1 into release
+static bool     m_TriggerRelease1;        // Signal to put ENV1 into release
 static bool     m_TriggerAttack2;         // Signal to put ENV2 into attack
 static bool     m_TriggerRelease2;        // Signal to put ENV2 into release
 static bool     m_TriggerContour;         // Signal to start Contour generator
 static bool     m_TriggerReset;           // Signal to reset Contour generator
 static bool     m_LegatoNoteChange;       // Signal Legato note change to Vibrato func.
-static uint8    m_NoteOn;                 // TRUE if Note ON, ie. "gated", else FALSE
-static uint8    m_NotePlaying;            // MIDI note number of note playing
+static uint8_t  m_NoteOn;                 // TRUE if Note ON, ie. "gated", else FALSE
+static uint8_t  m_NotePlaying;            // MIDI note number of note playing
 
 static int      m_RvbDelayLen;            // Reverb. delay line length (samples)
 static fixed_t  m_RvbDecay;               // Reverb. decay factor
-static uint16   m_RvbAtten;               // Reverb. attenuation factor (0..128)
-static uint16   m_RvbMix;                 // Reverb. wet/dry mix ratio (0..128)
+static uint16_t m_RvbAtten;               // Reverb. attenuation factor (0..128)
+static uint16_t m_RvbMix;                 // Reverb. wet/dry mix ratio (0..128)
 
-volatile uint8    v_SynthEnable;          // Signal to enable synth sampling routine
-volatile int32    v_OscAngle[6];          // Osc sample pos'n in wave-table [16:16]
-volatile int32    v_OscStep[6];           // Osc sample pos'n increment [16:16]
-volatile uint16   v_OscAmpldModn[6];      // Osc ampld modulation x1024 (0..1024)
-volatile uint16   v_MixerLevel[6];        // Mixer input levels x1000 (0..1000)
-volatile uint16   v_MixerOutGain;         // Mixer output gain x10  (range 10..128)
+volatile uint8_t  v_SynthEnable;          // Signal to enable synth sampling routine
+volatile long     v_OscAngle[6];          // Osc sample pos'n in wave-table [16:16]
+volatile long     v_OscStep[6];           // Osc sample pos'n increment [16:16]
+volatile uint16_t v_OscAmpldModn[6];      // Osc ampld modulation x1024 (0..1024)
+volatile uint16_t v_MixerLevel[6];        // Mixer input levels x1000 (0..1000)
+volatile uint16_t v_MixerOutGain;         // Mixer output gain x10  (range 10..128)
 volatile fixed_t  v_LimiterLevelPos;      // Audio limiter level (pos. peak, normalized)
 volatile fixed_t  v_LimiterLevelNeg;      // Audio limiter level (neg. peak, normalized)
-volatile uint16   v_OutputLevel;          // Audio output level x1000 (0..1000)
+volatile uint16_t v_OutputLevel;          // Audio output level x1000 (0..1000)
 
 // Look-up table giving frequencies of notes on the chromatic scale.
 // The array covers a 9-octave range beginning with C0 (MIDI note number 12),
@@ -108,7 +108,7 @@ const  float  g_FreqMultConst[] =
         { 0.5, 1.0, 1.333333, 1.5, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0 };
 
 // Values for Audio Ampld Level... 0 + 16 fixed levels on 3dB log scale
-const  uint16  g_AmpldLevelLogScale_x1000[] =
+const  uint16_t  g_AmpldLevelLogScale_x1000[] =
         { 0, 5, 8, 11, 16, 22, 31, 44, 63, 88, 125, 177, 250, 353, 500, 707, 1000 };
 
 
@@ -143,8 +143,8 @@ void  SynthPrepare()
   m_RvbDelayLen = (int) (REVERB_LOOP_TIME_SEC * SAMPLE_RATE_HZ);  // loop time is 0.04f
   rvbDecayRatio = (float) REVERB_LOOP_TIME_SEC / REVERB_DECAY_TIME_SEC;
   m_RvbDecay = FloatToFixed( powf(0.001f, rvbDecayRatio) );  // = 0.83 (approx)
-  m_RvbAtten = ((uint16)REVERB_ATTENUATION_PC << 7) / 100;  // = 0..127
-  m_RvbMix = ((uint16)g_Config.ReverbMix_pc << 7) / 100;  // = 0..127
+  m_RvbAtten = ((uint16_t)REVERB_ATTENUATION_PC << 7) / 100;  // = 0..127
+  m_RvbMix = ((uint16_t)g_Config.ReverbMix_pc << 7) / 100;  // = 0..127
 
   v_SynthEnable = 1;      // Let 'er rip, Boris!
 }
@@ -163,7 +163,7 @@ void  SynthPrepare()
  * When a new note is initiated, the function prepares the synth wave-table oscillators
  * to play the given note, then triggers the envelope shaper to start the 'Attack' phase.
  */
-void  SynthNoteOn(uint8 noteNum, uint8 velocity)
+void  SynthNoteOn(uint8_t noteNum, uint8_t velocity)
 {
   if (!m_NoteOn)    // Note OFF -- Initiate a new note...
   {
@@ -201,10 +201,10 @@ void  SynthTriggerAttack()
  * Entry args:   noteNum = MIDI standard note number. (Note #60 = C4 = middle-C.)
  *               The synth supports note numbers in the range: 12 (C0) to 120 (C9).
  */
-void  SynthNoteChange(uint8 noteNum)
+void  SynthNoteChange(uint8_t noteNum)
 {
   float   oscFreq, freqMult;
-  int32   tableSize, oscStep;  // 16:16 bit fixed point
+  int32_t tableSize, oscStep;  // 16:16 bit fixed point
   int     osc;
 
   // Ensure note number is within synth range (12 ~ 108)
@@ -222,8 +222,8 @@ void  SynthNoteChange(uint8 noteNum)
     else  m_OscMuted[osc] = FALSE;
 
     // Initialize oscillator "phase step" for use in audio ISR
-    tableSize = (int32) WAVE_TABLE_SIZE << 16;  // convert to 16:16 fixed-pt
-    oscStep = (int32) ((tableSize * oscFreq) / SAMPLE_RATE_HZ);
+    tableSize = (long) WAVE_TABLE_SIZE << 16;  // convert to 16:16 fixed-pt
+    oscStep = (long) ((tableSize * oscFreq) / SAMPLE_RATE_HZ);
     m_OscStepInit[osc] = oscStep;
   }
 }
@@ -238,7 +238,7 @@ void  SynthNoteChange(uint8 noteNum)
  * terminated by the synth process (B/G task) when the release time expires, or if
  * a new note is initiated prior.
  */
-void  SynthNoteOff(uint8 noteNum)
+void  SynthNoteOff(uint8_t noteNum)
 {
   noteNum &= 0x7F;
   if (noteNum > 120)  noteNum -= 12;   // too high
@@ -261,7 +261,7 @@ void  SynthTriggerRelease()
 void  SynthSetOscFrequency(float fundamental_Hz)
 {
   float   oscFreq, freqMult;
-  int32   tableSize, oscStep;  // 16:16 bit fixed point
+  long   tableSize, oscStep;  // 16:16 bit fixed point
   int     osc;
 
   for (osc = 0;  osc < 6;  osc++)  // Set freq in 6 oscillators...
@@ -272,8 +272,8 @@ void  SynthSetOscFrequency(float fundamental_Hz)
     else  m_OscMuted[osc] = FALSE;
 
     // Initialize oscillator "phase step" for use in audio ISR
-    tableSize = (int32) WAVE_TABLE_SIZE << 16;  // convert to 16:16 fixed-pt
-    oscStep = (int32) ((tableSize * oscFreq) / SAMPLE_RATE_HZ);
+    tableSize = (long) WAVE_TABLE_SIZE << 16;  // convert to 16:16 fixed-pt
+    oscStep = (long) ((tableSize * oscFreq) / SAMPLE_RATE_HZ);
     m_OscStepInit[osc] = oscStep;
   }
 }
@@ -286,19 +286,18 @@ void  SynthSetOscFrequency(float fundamental_Hz)
  * Entry args:   data14 = MIDI expression/pressure value (14 bits, unsigned).
  *
  * Output:       (fixed_t) m_ExpressionLevel = normalized level (0..+1.0),
- *                         capped at 0.990 (99%FS)
- *
- * Note:   A square-law is applied to the data value to approximate an exponential
- *         response curve. The output expression level is fixed point, normalized.
+ *                         capped at 0.99 (99%FS)
  */
 void   SynthExpression(unsigned data14)
 {
-  uint32  ulval;
+  uint32_t  ulval = data14;
   fixed_t level;
   fixed_t levelMax = (IntToFixedPt(1) * 99) / 100;  // = 0.99
 
-  ulval = ((uint32) data14 * data14) / 16384;  // apply square law
-  ulval = ulval << 6;   // scale to 20 bits (fractional part)
+  if (APPLY_EXPRESSN_EXPL_CURVE)
+    ulval = ((uint32_t) data14 * data14) / 16384;  // square law approximates expon'l
+  else  ulval = data14;  //  use linear transfer
+  ulval = ulval << 6;  // scale to 20 bits (fractional part)
   level = (fixed_t) ulval;  // convert to fixed-point fraction
   if (level > levelMax) level = levelMax;  // limit at 0.99
 
@@ -348,7 +347,7 @@ fixed_t  GetPitchBendFactor()
 void   SynthModulation(unsigned data14)
 {
   if (data14 < (16 * 1024))
-    m_ModulationLevel = (fixed_t) ((uint32) data14 << 6);
+    m_ModulationLevel = (fixed_t) ((uint32_t) data14 << 6);
   else  m_ModulationLevel = FIXED_MAX_LEVEL;
 }
 
@@ -398,8 +397,8 @@ void  SynthProcess()
  */
 void  AmpldEnvelopeGenerator()
 {
-  static  uint8    EnvSegment;      // Envelope segment (aka "phase")
-  static  uint32   envPhaseTimer;   // Time elapsed in envelope phase (ms)
+  static  uint8_t    EnvSegment;      // Envelope segment (aka "phase")
+  static  uint32_t   envPhaseTimer;   // Time elapsed in envelope phase (ms)
   static  fixed_t  sustainLevel;    // Envelope sustain level, norm. (0 ~ 1.000)
   static  fixed_t  timeConstant;    // 20% of decay or release time (ms)
   static  fixed_t  ampldDelta;      // Step change in Env Ampld in 1ms
@@ -493,8 +492,8 @@ void  AmpldEnvelopeGenerator()
  */
 void   TransientEnvelopeGen()
 {
-  static  uint8    EnvSegment;      // Envelope segment (aka "phase")
-  static  uint32   envPhaseTimer;   // Time elapsed in envelope phase (ms)
+  static  uint8_t    EnvSegment;      // Envelope segment (aka "phase")
+  static  uint32_t   envPhaseTimer;   // Time elapsed in envelope phase (ms)
   static  fixed_t  sustainLevel;    // Envelope sustain level (0 ~ 1.000)
   static  fixed_t  timeConstant;    // 20% of decay or release time (ms)
   static  fixed_t  ampldDelta;      // Step change in Env Ampld in 1ms
@@ -585,7 +584,7 @@ void   TransientEnvelopeGen()
 void  ContourGenerator()
 {
   static  short    contourSegment;  // Contour envelope segment (aka phase)
-  static  uint32   segmentTimer;    // Time elapsed in active phase (ms)
+  static  uint32_t   segmentTimer;    // Time elapsed in active phase (ms)
   static  fixed_t  outputDelta;     // Step change in output level per millisecond
   static  fixed_t  startLevel;      // Output level at start of contour (0..+1.0)
   static  fixed_t  holdLevel;       // Output level maintained at end of ramp (0..+1.0)
@@ -657,7 +656,7 @@ void   AudioLevelController()
   static  fixed_t  smoothExprnLevel;  // Expression level, normalized, smoothed
   volatile  fixed_t  outputLevel;     // immune to corruption by ISR
   fixed_t  exprnLevel;
-  uint8   controlSource = g_Patch.AmpControlMode;  // default
+  uint8_t   controlSource = g_Patch.AmpControlMode;  // default
 
   // Check for global (config) override of patch parameter
   if (g_Config.AudioAmpldCtrlMode == AUDIO_CTRL_CONST)
@@ -675,8 +674,10 @@ void   AudioLevelController()
   }
   else if (controlSource == AMPLD_CTRL_ENV1_VELO)  // mode 2
   {
+#if (!BUILD_FOR_POLY_VOICE)  // assume Sigma-6 Mono VM with CV inputs
     if (g_CVcontrolMode && g_Config.CV3_is_Velocity)
       m_KeyVelocity = m_ExpressionLevel;  // CV3 (EXPRN) input controls ampld
+#endif
     outputAmpld = MultiplyFixed(m_ENV1_Output, m_KeyVelocity);
   }
   else if (controlSource == AMPLD_CTRL_EXPRESS)  // mode 3
@@ -727,14 +728,23 @@ void   AudioLevelController()
  */
 void   LowFrequencyOscillator()
 {
-  static  int32  oscAngleLFO;  // 24:8 bit fixed-point format
   int  waveIdx;
 
-  waveIdx = oscAngleLFO >> 8;  // integer part of oscAngleLFO
+  waveIdx = m_LFO_PhaseAngle >> 8;  // integer part of m_LFO_PhaseAngle
   m_LFO_output = (fixed_t) g_sine_wave[waveIdx] << 5;  // normalized sample
-  oscAngleLFO += m_LFO_Step;
-  if (oscAngleLFO >= (WAVE_TABLE_SIZE << 8))
-    oscAngleLFO -= (WAVE_TABLE_SIZE << 8);
+  m_LFO_PhaseAngle += m_LFO_Step;
+  if (m_LFO_PhaseAngle >= (WAVE_TABLE_SIZE << 8))
+    m_LFO_PhaseAngle -= (WAVE_TABLE_SIZE << 8);
+}
+
+/*
+ * Function:  Reset (zero) LFO phase angle.
+ * Intended for polyphonic and multi-phonic systems.
+ * Preferably called while no note is playing.
+ */
+void  SynthLFO_PhaseSync()
+{
+  m_LFO_PhaseAngle = 0;
 }
 
 
@@ -753,7 +763,7 @@ void   LowFrequencyOscillator()
 void   VibratoRampGenerator()
 {
   static  short   rampState = 0;
-  static  uint32  rampTimer_ms;
+  static  uint32_t  rampTimer_ms;
   static  fixed_t rampStep;  // Step chnage in output per 5 ms
 
   if (g_Patch.LFO_RampTime == 0)  // ramp disabled
@@ -830,8 +840,8 @@ void   OscFreqModulation()
   fixed_t LFO_scaled;      // normalized, bipolar (range 0..+/-1.0)
   fixed_t modnLevel;       // normalized, unipolar (range 0..+1.0)
   fixed_t freqDevn;        // deviation from median freq. (x0.5 .. x2.0)
-  int32   oscStep;         // temporary for calc'n (16:16 bit fix-pt)
-  int32   oscFreqLFO;      // 24:8 bit fixed-point format (8-bit fraction)
+  long   oscStep;         // temporary for calc'n (16:16 bit fix-pt)
+  long   oscFreqLFO;      // 24:8 bit fixed-point format (8-bit fraction)
   short   osc, cents;
 
   oscFreqLFO = (((int) g_Patch.LFO_Freq_x10) << 8) / 10;  // 24:8 bit fixed-pt
@@ -857,7 +867,7 @@ void   OscFreqModulation()
 
   for (osc = 0;  osc < 6;  osc++)
   {
-    cents = g_Patch.OscDetune[osc] + g_Config.MasterTuneOffset;  // signed
+    cents = g_Patch.OscDetune[osc] + g_Config.FineTuning_cents;  // signed
     detuneNorm = Base2Exp((IntToFixedPt(1) * cents) / 1200);
     m_OscStepDetune[osc] = MultiplyFixed(m_OscStepInit[osc], detuneNorm);
     oscStep = MultiplyFixed(m_OscStepDetune[osc], freqDevn);  // Apply FM
@@ -956,7 +966,7 @@ void  TC3_Handler(void)
   fixed_t  reverbOut;             // output from reverb delay line
   fixed_t  reverbLPF;             // output from reverb filter
   fixed_t  finalOutput = 0;       // output to audio DAC
-  uint16   spiDACdata;            // SPI DAC register data
+  uint16_t   spiDACdata;            // SPI DAC register data
 
   digitalWrite(TESTPOINT1, HIGH);  // pin pulses high during ISR execution
 
@@ -1004,7 +1014,7 @@ void  TC3_Handler(void)
   }
 
 #if USE_SPI_DAC_FOR_AUDIO
-  spiDACdata = (uint16)(2048 + (int)(finalOutput >> 9));  // 12 LS bits
+  spiDACdata = (uint16_t)(2048 + (int)(finalOutput >> 9));  // 12 LS bits
   digitalWrite(SPI_DAC_CS, LOW);
   SPI.transfer16(spiDACdata | 0x3000 );
   digitalWrite(SPI_DAC_CS, HIGH);
@@ -1031,8 +1041,8 @@ fixed_t  Base2Exp(fixed_t xval)
   int   ixval;        // 13-bit integer representing x-axis coordinate
   int   idx;          // 10 MS bits of ixval = array index into LUT, g_base2exp[]
   int   irem3;        // 3 LS bits of ixval for interpolation
-  int32 ydelta;       // change in y value between 2 adjacent points in LUT
-  int32 yval;         // y value (from LUT) with interpolation
+  long ydelta;       // change in y value between 2 adjacent points in LUT
+  long yval;         // y value (from LUT) with interpolation
 
   if (xval < IntToFixedPt(-1) || xval > IntToFixedPt(1))  xval = 0;
 
@@ -1045,8 +1055,8 @@ fixed_t  Base2Exp(fixed_t xval)
     yval = 2 << 14;  // maximum value in 18:14 bit format
   else
   {
-    yval = (int32) g_base2exp[idx];
-    ydelta = (((int32) g_base2exp[idx+1] - yval) * irem3) / 8;
+    yval = (long) g_base2exp[idx];
+    ydelta = (((long) g_base2exp[idx+1] - yval) * irem3) / 8;
     yval = yval + ydelta;
   }
 
@@ -1063,7 +1073,7 @@ fixed_t  Base2Exp(fixed_t xval)
 //      ````````````````````````````````````````````````````````
 // For higher precision, where required, use the function: Base2Exp()
 //
-const  uint16  g_base2exp[] =
+const  uint16_t  g_base2exp[] =
 {
     0x2000, 0x200B, 0x2016, 0x2021, 0x202C, 0x2037, 0x2042, 0x204E,
     0x2059, 0x2064, 0x206F, 0x207A, 0x2086, 0x2091, 0x209C, 0x20A8,

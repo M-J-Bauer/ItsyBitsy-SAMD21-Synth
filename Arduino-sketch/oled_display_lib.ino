@@ -656,8 +656,8 @@ void  Disp_BlockFill(uint16_t w, uint16_t h)
   +-----------------------------------------------------------------------------------*/
 void  Disp_BlockClear(uint16_t w, uint16_t h)
 {
-  uint16 save_X = CursorPosX;
-  uint16 save_Y = CursorPosY;
+  uint16_t save_X = CursorPosX;
+  uint16_t save_Y = CursorPosY;
   
   Disp_Mode(CLEAR_PIXELS);
   Disp_BlockFill(w, h);  
@@ -926,7 +926,7 @@ void  Disp_PutHexByte(uint8_t bDat)
 *               If the value is too big to fit into the specified minimum field size,
 *               the field will be expanded to accommodate the number of digits.
 *
-*   Args:       (uint16) uwVal = unsigned word to be converted and output
+*   Args:       (uint16_t) uwVal = unsigned word to be converted and output
 *               (uint8) bFieldSize = number of character places to output (1..5)
 *
 *--------------------------------------------------------------------------------------*/
@@ -1152,7 +1152,7 @@ void  Disp_PutChar12(uint8_t uc)
 */
 void   Disp_PutChar16(uint8_t uc)
 {
-  short  exceptions = ARRAY_SIZE(NotBoldCharList);
+  short  exceptions = sizeof(NotBoldCharList);
   short  i, j, k;
   uint8_t  bitmap[20][2];  // image is 2 cols x 16 rows
   uint8_t *pData;
@@ -1202,11 +1202,11 @@ void   Disp_PutChar16(uint8_t uc)
     }
 
     // Construct 2 identical rows of the character bitmap
-    bitmap[k][0] = HI_BYTE(pixels);    // Even numbered row of 16 pixels
-    bitmap[k][1] = LO_BYTE(pixels);
+    bitmap[k][0] = (pixels >> 8);    // Even numbered row of 16 pixels
+    bitmap[k][1] = (pixels & 0xFF);
     k++;
-    bitmap[k][0] = HI_BYTE(pixels);    // Odd numbered row of 16 pixels
-    bitmap[k][1] = LO_BYTE(pixels);
+    bitmap[k][0] = (pixels >> 8);    // Odd numbered row of 16 pixels
+    bitmap[k][1] = (pixels & 0xFF);
     k++;
   }
 

@@ -9,6 +9,10 @@
 #ifndef OLED_DISPLAY_LIB_H
 #define OLED_DISPLAY_LIB_H
 
+#ifndef bitmap_t
+typedef unsigned char  bitmap_t;
+#endif
+
 // Set the OLED controller (SH1106) IIC device address here:
 //
 #define SH1106_I2C_ADDRESS  0x3C  // (pin SA0 tied Low)

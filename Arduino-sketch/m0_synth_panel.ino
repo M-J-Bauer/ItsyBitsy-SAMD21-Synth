@@ -8,7 +8,6 @@
  *
  * Author:     M.J.Bauer, 2025 -- www.mjbauer.biz
  */
-#include "common_def.h"
 #include "m0_synth_def.h"
 #include "oled_display_lib.h"
 
@@ -58,7 +57,7 @@ void UserState_SetupMenu();
 //
 void UserState_SetAmpldControl();
 void UserState_SetVibratoMode();
-void UserState_SetPitchBendMode();
+void UserState_SetPitchBend();
 void UserState_SetReverbLevel();
 void UserState_SetCVOptions();
 void UserState_SetCVBaseNote();
@@ -150,10 +149,10 @@ bitmap_t cv_jack_icon_8x8[] = {
 
 char messageLine1[32], messageLine2[32];  // message to display
 
-const uint8  percentLogScale[] =       // 16 values, 3dB log scale (approx.)
+const uint8_t  percentLogScale[] =       // 16 values, 3dB log scale (approx.)
         { 0, 1, 2, 3, 4, 5, 8, 10, 12, 16, 25, 35, 50, 70, 100, 100  };
 
-const uint16 timeValueQuantized[] =     // 16 values, logarithmic scale
+const uint16_t timeValueQuantized[] =     // 16 values, logarithmic scale
         { 0, 10, 20, 30, 50, 70, 100, 200, 300, 500, 700, 1000, 1500, 2000, 3000, 5000 };
 
 
@@ -163,8 +162,8 @@ static bool buttonHit_A;    // flag: button 'A' hit detected
 static bool buttonHit_B;    // flag: button 'B' hit detected
 static bool buttonState_A;  // Button state, de-glitched (0: released, 1: pressed)
 static bool buttonState_B;  // Button state, de-glitched (0: released, 1: pressed)
-static uint32 buttonPressTime_A;  // Time button A held pressed (ms)
-static uint32 buttonPressTime_B;  // Time button B held pressed (ms)
+static uint32_t buttonPressTime_A;  // Time button A held pressed (ms)
+static uint32_t buttonPressTime_B;  // Time button B held pressed (ms)
 //
 /*
   |  Routine to monitor button states and to detect button hits.
@@ -176,8 +175,8 @@ static uint32 buttonPressTime_B;  // Time button B held pressed (ms)
  */
 void ButtonScan() 
 {
-  static uint32 buttonReleaseTime_A, buttonReleaseTime_B;
-  static uint8 buttonStateLastScan_A, buttonStateLastScan_B;  // 0: Released, 1: Pressed
+  static uint32_t buttonReleaseTime_A, buttonReleaseTime_B;
+  static uint8_t buttonStateLastScan_A, buttonStateLastScan_B;  // 0: Released, 1: Pressed
 
   if (BUTTON_A_PRESSED)  { buttonPressTime_A += 5;  buttonReleaseTime_A = 0; } 
   else  { buttonReleaseTime_A += 5;  buttonPressTime_A = 0; }  // released
@@ -229,7 +228,7 @@ BOOL ButtonHit(char keycode)
 
 //=================  D A T A   E N T R Y   P O T   F U N C T I O N S  ===================
 //
-static uint32 potReadingAve;  // smoothed pot reading [24:8 fixed-pt]
+static uint32_t potReadingAve;  // smoothed pot reading [24:8 fixed-pt]
 //
 /*
  * Function:  PotService()
@@ -243,8 +242,9 @@ static uint32 potReadingAve;  // smoothed pot reading [24:8 fixed-pt]
  */
 void PotService() 
 {
-  long potReading = analogRead(A0);  // 12-bit reading;
+  long potReading = analogRead(A0);  // 1st reading invalid, discarded
 
+  potReading = analogRead(A0);  // valid reading
   // Apply 1st-order IIR filter (K = 0.25)
   potReading = potReading << 8;  // convert to fixed-point (24:8 bits)
   potReadingAve -= (potReadingAve >> 2);
@@ -280,11 +280,11 @@ bool PotMoved()
  *               Full-scale ADC reading is 4095.  Divide by 16 to get 255.
  *               Shift right 8 bits to get integer part; then shift 4 bits more.
  *
- * Return val:   (uint8) Filtered Pot position reading, range 0..255.
+ * Return val:   (uint8_t) Filtered Pot position reading, range 0..255.
  */
-uint8 PotPosition() 
+uint8_t PotPosition() 
 {
-  return (uint8)(potReadingAve >> 12);    // (Integer part) / 16
+  return (uint8_t)(potReadingAve >> 12);    // (Integer part) / 16
 }
 
 
@@ -292,9 +292,9 @@ uint8 PotPosition()
 //
 static bool screenSwitchReq;      // flag: Request to switch to next screen
 static bool isNewScreen;          // flag: Screen switch has occurred
-static uint8 currentScreen;       // ID number of current screen displayed
-static uint8 previousScreen;      // ID number of previous screen displayed
-static uint8 nextScreen;          // ID number of next screen to be displayed
+static uint8_t currentScreen;       // ID number of current screen displayed
+static uint8_t previousScreen;      // ID number of previous screen displayed
+static uint8_t nextScreen;          // ID number of next screen to be displayed
 //
 /*
  * Display title bar text left-justified top of screen in 12pt font with underline.
@@ -316,7 +316,7 @@ void DisplayTitleBar(const char *titleString)
  * using 8pt mono-spaced font, at the specified screen position (x, y) = bar upper LHS.
  * On exit, the display write mode is restored to 'SET_PIXELS'.
  */
-void DisplayButtonLegend(uint8 x, const char *str) 
+void DisplayButtonLegend(uint8_t x, const char *str) 
 {
   int len = strlen(str);
   int i, wpix;
@@ -339,7 +339,7 @@ void DisplayButtonLegend(uint8 x, const char *str)
 /*
  * Function returns the screen ID number of the currently displayed screen.
  */
-uint8 GetCurrentScreenID() 
+uint8_t GetCurrentScreenID() 
 {
   return currentScreen;
 }
@@ -351,7 +351,7 @@ uint8 GetCurrentScreenID()
  *
  * Entry arg:  screenID = ID number of next screen required.
  */
-void GoToNextScreen(uint8 screenID) 
+void GoToNextScreen(uint8_t screenID) 
 {
   nextScreen = screenID;
   screenSwitchReq = TRUE;
@@ -385,7 +385,7 @@ void UserInterfaceTask(void)
     //
     case SET_AMPLD_CTRL:     UserState_SetAmpldControl();    break;
     case SET_VIBRATO_MODE:   UserState_SetVibratoMode();     break;
-    case SET_PITCH_BEND:     UserState_SetPitchBendMode();   break;
+    case SET_PITCH_BEND:     UserState_SetPitchBend();   break;
     case SET_REVERB_LEVEL:   UserState_SetReverbLevel();     break;
     case SET_CV_OPTIONS:     UserState_SetCVOptions();       break;
     case SET_CV_BASE_NOTE:   UserState_SetCVBaseNote();      break;
@@ -411,7 +411,7 @@ void UserInterfaceTask(void)
 
 void UserState_StartupScreen() 
 {
-  static  uint32  stateTimer;  // unit = 50ms
+  static  uint32_t  stateTimer;  // unit = 50ms
   static  bool  doneEEpromCheck;  // FALSE initially
   
   if (isNewScreen) 
@@ -434,8 +434,11 @@ void UserState_StartupScreen()
     DisplayTitleBar("Start-up");
     Disp_SetFont(PROP_8_NORM);
     Disp_PosXY(4, 16);
-    if (USE_SAMD21_M0_MINI_MCU) Disp_PutText("MCU: Robotdyn M0 mini");
-    else  Disp_PutText("MCU: Adafruit M0 Exprs");
+#if (MCU_PINS_D2_D4_REVERSED)  // assume Robotdyn MCU
+    Disp_PutText("MCU: Robotdyn M0 Mini");
+#else
+    Disp_PutText("MCU: Adafruit M0 Exprs");
+#endif
     Disp_PosXY(4, 28);
     Disp_PutText("Firmware version: ");
     Disp_SetFont(MONO_8_NORM);
@@ -482,7 +485,7 @@ void UserState_StartupScreen()
 void UserState_ConfirmDefault()
 {
   static bool  affirmed;
-  static uint32 timeSinceAffirm_ms;
+  static uint32_t timeSinceAffirm_ms;
 
   if (isNewScreen) 
   {
@@ -527,13 +530,13 @@ void UserState_ConfirmDefault()
 
 void UserState_HomeScreen() 
 {
-  static uint8 lastPresetShown;
+  static uint8_t lastPresetShown;
   static short midiNoActivityTimer;  // unit = 50ms
   static bool  midiRxIconVisible;
   static bool  gateIconVisible;
   static bool  CVmodeIndicated;
-  uint8 setting;
-  uint8 preset_id = g_Config.PresetLastSelected;
+  uint8_t setting;
+  uint8_t preset_id = g_Config.PresetLastSelected;
   char *presetName = (char *)g_PresetPatch[preset_id].PresetName;
 
   if (isNewScreen) 
@@ -551,17 +554,19 @@ void UserState_HomeScreen()
     Disp_PutText("Sigma");
     Disp_PosXY(Disp_GetX() + 2, 2);
     Disp_PutChar('6');
-
-    Disp_PosXY(0, 31);
-    Disp_DrawLineHoriz(128);
     
     Disp_SetFont(MONO_8_NORM);
-    Disp_PosXY(32, 18);
+    Disp_PosXY(32, 17);
     Disp_PutText(HOME_SCREEN_SYNTH_DESCR);  // see file m0_synth_def.h
     // Display logo at upper RHS according to MCU board type...
     Disp_PosXY(116, 0);
-    if (USE_SAMD21_M0_MINI_MCU) Disp_PutImage(RobotDyn_logo_11x11, 11, 11);
-    else  Disp_PutImage(Adafruit_logo_11x12, 11, 12);
+#if (MCU_PINS_D2_D4_REVERSED)  // assume Robotdyn MCU
+    Disp_PutImage(RobotDyn_logo_11x11, 11, 11);
+#else  
+    Disp_PutImage(Adafruit_logo_11x12, 11, 12);
+#endif
+    Disp_PosXY(0, 28);
+    Disp_DrawLineHoriz(128);
     
     DisplayButtonLegend(BUTT_POS_A, "PRESET");
     DisplayButtonLegend(BUTT_POS_B, "SETUP");
@@ -585,12 +590,12 @@ void UserState_HomeScreen()
   // Refresh Preset displayed if selection changed...
   if (lastPresetShown != g_Config.PresetLastSelected) 
   {
-    Disp_PosXY(0, 36);
-    Disp_BlockClear(128, 8);  // erase existing line
+    Disp_PosXY(4, 36);
+    Disp_BlockClear(124, 8);  // erase existing line
     Disp_SetFont(MONO_8_NORM);
     Disp_PutDecimal(g_Config.PresetLastSelected, 2);  // Preset #
     Disp_PutChar(' ');
-    if (strlen(presetName) > 18) Disp_SetFont(PROP_8_NORM);
+    if (strlen(presetName) > 20) Disp_SetFont(PROP_8_NORM);
     Disp_PutText(presetName);
     lastPresetShown = g_Config.PresetLastSelected;
   }
@@ -629,13 +634,13 @@ void UserState_HomeScreen()
   if (g_CVcontrolMode && !CVmodeIndicated)  // Indicate 'CV mode' status
   {
     Disp_SetFont(MONO_8_NORM);
-    Disp_PosXY(116, 18);
+    Disp_PosXY(116, 17);
     Disp_PutText("CV");
     CVmodeIndicated = TRUE;
   }
   else if (CVmodeIndicated && !g_CVcontrolMode)
   {
-    Disp_PosXY(116, 18);
+    Disp_PosXY(116, 17);
     Disp_BlockClear(12, 8);
     CVmodeIndicated = FALSE;
   }
@@ -644,17 +649,23 @@ void UserState_HomeScreen()
 
 void UserState_SelectPreset() 
 {
-  static uint32 timeSinceLastRefresh_ms;  // unit = ms
-  static uint8 setting;
+  static uint32_t timeSinceLastRefresh_ms;  // unit = ms
+  static uint8_t  bank, setting;
   static bool settingChanged;
+  uint8_t  numBanks = (GetNumberOfPresets() + 15) / 16;  // 16 presets per bank
   char *presetName;
   bool doRefresh = FALSE;
 
   if (isNewScreen) 
   {
-    DisplayTitleBar("SELECT PRESET");
-    DisplayButtonLegend(BUTT_POS_A, "Cancel");
-    DisplayButtonLegend(BUTT_POS_B, "Affirm");
+    DisplayTitleBar("     PRESET");
+    Disp_PosXY(116, 1);
+    Disp_PutImage(config_icon_9x9, 9, 9);  // Config icon
+    DisplayButtonLegend(BUTT_POS_A, "Select");
+    DisplayButtonLegend(BUTT_POS_B, "Bank >>");
+    Disp_SetFont(MONO_8_NORM);
+    Disp_PosXY(100, 16);
+    Disp_PutText("Bank");
     setting = g_Config.PresetLastSelected;
     settingChanged = TRUE;  // signal to refresh preset shown
     doRefresh = TRUE;
@@ -662,35 +673,46 @@ void UserState_SelectPreset()
 
   if (PotMoved()) 
   {
-    setting = PotPosition() / 8;  // 0..32
+    setting = PotPosition() / 16 + (bank * 16);
     if (setting >= GetNumberOfPresets()) setting = GetNumberOfPresets() - 1;
     settingChanged = TRUE;
     doRefresh = TRUE;
   }
 
-  if (ButtonHit('A')) GoToNextScreen(HOME_SCREEN);  // no change
-  if (ButtonHit('B'))  // Affirm new setting
+  if (ButtonHit('A'))  // Select and exit
   {
     PresetSelect(setting);
     GoToNextScreen(HOME_SCREEN);
   }
-
+  if (ButtonHit('B'))  // Next bank
+  {
+    if (++bank >= numBanks) bank = 0;
+    setting = PotPosition() / 16 + (bank * 16);
+    if (setting >= GetNumberOfPresets()) setting = GetNumberOfPresets() - 1;
+    settingChanged = TRUE;
+    doRefresh = TRUE;
+  }
+  
   if (doRefresh)  
   {
-    Disp_SetFont(MONO_16_NORM);  // Display preset number
-    Disp_PosXY(48, 20);
-    Disp_BlockClear(40, 16);  // clear existing data
+    Disp_SetFont(MONO_16_NORM);
+    Disp_PosXY(48, 20);  // Display preset #
+    Disp_BlockClear(40, 16);
     Disp_PutDecimal(setting, 2);
+    Disp_SetFont(PROP_12_BOLD);
+    Disp_PosXY(112, 26);  // Show bank #
+    Disp_BlockClear(8, 10);
+    Disp_PutDecimal(bank+1, 1);
     timeSinceLastRefresh_ms = 0;  // reset timer
   }
 
-  if (settingChanged && timeSinceLastRefresh_ms >= 250)
+  if (settingChanged && timeSinceLastRefresh_ms >= 200)
   {
     presetName = (char *)g_PresetPatch[setting].PresetName;
-    if (strlen(presetName) <= 18) Disp_SetFont(MONO_8_NORM);
-    else Disp_SetFont(PROP_8_NORM);
-    Disp_PosXY(8, 38);
-    Disp_BlockClear(120, 8);  // erase existing line
+    if (strlen(presetName) > 20) Disp_SetFont(PROP_8_NORM);
+    else  Disp_SetFont(MONO_8_NORM);
+    Disp_PosXY(4, 38);
+    Disp_BlockClear(124, 8);  // erase existing line
     Disp_PutText(presetName);  // Display preset name
     settingChanged = FALSE;  // prevent repeat refresh
     timeSinceLastRefresh_ms = 0;
@@ -703,18 +725,16 @@ void UserState_SelectPreset()
 void UserState_SetupMenu() 
 {
   static const char *parameterName[] = { "Ampld Control", "Vibrato", "Pitch Bend", "Reverb",
-    "CV Options", "Master Tune", "LFO Depth", "LFO Freq", "LFO Ramp", "ENV Attack", "ENV Hold",
+    "CV Options", "Fine Tuning", "LFO Depth", "LFO Freq", "LFO Ramp", "ENV Attack", "ENV Hold",
     "ENV Decay", "ENV Sustain", "ENV Release", "Mixer Gain", "Limiter"
   };
-  static uint8 setting;
+  static uint8_t setting;
   static bool  legatoIndicated;
   bool doRefresh = FALSE;
 
   if (isNewScreen) 
   {
     DisplayTitleBar("   SETUP MENU");
-    Disp_PosXY(116, 1);
-    Disp_PutImage(config_icon_9x9, 9, 9);  // Config icon
     Disp_SetFont(PROP_8_NORM);
     Disp_PosXY(4, 18);
     Disp_PutText("Parameter to adjust:");
@@ -780,7 +800,7 @@ void UserState_SetupMenu()
 
 void UserState_SetAmpldControl() 
 {
-  static uint8 setting;
+  static uint8_t setting;
   static bool settingChanged;
   bool doRefresh = FALSE;
 
@@ -836,7 +856,7 @@ void UserState_SetAmpldControl()
 
 void UserState_SetVibratoMode() 
 {
-  static uint8 setting;
+  static uint8_t setting;
   static bool settingChanged;
   bool doRefresh = FALSE;
 
@@ -884,10 +904,11 @@ void UserState_SetVibratoMode()
 }
 
 
-void UserState_SetPitchBendMode()
+void UserState_SetPitchBend()
 {
-  static uint8 setting;
+  static uint8_t setting;
   static bool settingChanged;
+  uint8_t numDigits = 1;
   bool doRefresh = FALSE;
 
   if (isNewScreen) 
@@ -897,14 +918,15 @@ void UserState_SetPitchBendMode()
     Disp_PutImage(config_icon_9x9, 9, 9);  // Config icon
     DisplayButtonLegend(BUTT_POS_A, "Cancel");
     DisplayButtonLegend(BUTT_POS_B, "Affirm");
-    setting = g_Config.PitchBendMode;
+    if (g_Config.PitchBendMode == 0) setting = 0;  // Off
+    else  setting = g_Config.PitchBendRange;
     settingChanged = FALSE;
     doRefresh = TRUE;
   }
 
   if (PotMoved()) 
   {
-    setting = (PotPosition() >> 5) & 3;  // 0..3 repeating
+    setting = PotPosition() / 20;  // 0..12
     settingChanged = TRUE;
     doRefresh = TRUE;
   }
@@ -914,7 +936,12 @@ void UserState_SetPitchBendMode()
   {
     if (settingChanged) 
     {
-      g_Config.PitchBendMode = setting;
+      if (setting != 0) 
+      {
+        g_Config.PitchBendRange = setting;
+        g_Config.PitchBendMode = PITCH_BEND_BY_MIDI_MSG;
+      }
+      else  g_Config.PitchBendMode = PITCH_BEND_DISABLED;
       StoreConfigData();
     }
     GoToNextScreen(SETUP_MENU);
@@ -922,20 +949,35 @@ void UserState_SetPitchBendMode()
 
   if (doRefresh) 
   {
-    Disp_SetFont(PROP_12_NORM);
-    Disp_PosXY(24, 26);
-    Disp_BlockClear(104, 12);  // erase existing text
-    if (setting == PITCH_BEND_BY_MIDI_MSG)  Disp_PutText("MIDI message");
-    else if (setting == PITCH_BEND_BY_CV1_INPUT)  Disp_PutText("CV1 input");
-    else  Disp_PutText("Disabled");
+    Disp_PosXY(8, 20);
+    Disp_BlockClear(112, 28);  // erase existing data
+    if (setting == 0)
+    {
+      Disp_SetFont(PROP_12_BOLD);
+      Disp_PosXY(32, 24);
+      Disp_PutText("Disabled");
+    }
+    else
+    {
+      if (setting >= 10) numDigits = 2;
+      Disp_SetFont(PROP_8_NORM);
+      Disp_PosXY(8, 24);
+      Disp_PutText("Bend Range:");
+      Disp_SetFont(PROP_12_BOLD);
+      Disp_PosXY(72, 22);
+      Disp_PutDecimal(setting, numDigits);
+      Disp_SetFont(PROP_8_NORM);
+      Disp_PosXY(48, 38);
+      Disp_PutText("semitones");
+    }
   }
 }
 
 
 void UserState_SetReverbLevel() 
 {
-  static uint8 settingSaved;  // on entry
-  uint8  setting;
+  static uint8_t settingSaved;  // on entry
+  uint8_t  setting;
   bool doRefresh = FALSE;
 
   if (isNewScreen) 
@@ -984,7 +1026,7 @@ void UserState_SetReverbLevel()
 
 void UserState_SetCVOptions()
 {
-  static uint8 setting;
+  static uint8_t setting;
   static bool settingChanged;
   bool doRefresh = FALSE;
 
@@ -1050,7 +1092,7 @@ void UserState_SetCVBaseNote()
 {
   static const char *noteMnemonic[] = 
     { "C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B" };
-  static uint8 setting;
+  static uint8_t setting;
   static bool settingChanged;
   bool doRefresh = FALSE;
 
@@ -1110,7 +1152,7 @@ void UserState_SetMasterTune()
 
   if (isNewScreen) 
   {
-    DisplayTitleBar("Master Tune");
+    DisplayTitleBar("Fine Tuning");
     Disp_Mode(SET_PIXELS);
     Disp_PosXY(116, 1);
     Disp_PutImage(config_icon_9x9, 9, 9);  // Config icon
@@ -1119,7 +1161,7 @@ void UserState_SetMasterTune()
     Disp_PutText("cent");  
     DisplayButtonLegend(BUTT_POS_A, "Cancel");
     DisplayButtonLegend(BUTT_POS_B, "Affirm");
-    settingSaved = g_Config.MasterTuneOffset;
+    settingSaved = g_Config.FineTuning_cents;
     doRefresh = TRUE;
   }
 
@@ -1136,13 +1178,13 @@ void UserState_SetMasterTune()
       if (setting > -6) setting = 0;  // dead-band
       else  setting = ((setting + 6) * 100) / 121;  // 0 ~ -100
     }
-    g_Config.MasterTuneOffset = setting;
+    g_Config.FineTuning_cents = setting;
     doRefresh = TRUE;
   }
 
   if (ButtonHit('A'))  // Cancel
   {
-    g_Config.MasterTuneOffset = settingSaved;
+    g_Config.FineTuning_cents = settingSaved;
     GoToNextScreen(SETUP_MENU);
   }
   if (ButtonHit('B'))  // Affirm
@@ -1156,7 +1198,7 @@ void UserState_SetMasterTune()
     Disp_SetFont(MONO_16_NORM);
     Disp_PosXY(40, 24);
     Disp_BlockClear(48, 16);  // clear existing data
-    setting = g_Config.MasterTuneOffset;
+    setting = g_Config.FineTuning_cents;
     absValue = (setting >= 0) ? setting : (0 - setting);
     if (setting < 0)  Disp_PutChar('-');
     else if (setting > 0)  Disp_PutChar('+');
@@ -1219,7 +1261,7 @@ void UserState_Set_LFO_FM_Depth()
 
 void UserState_Set_LFO_Freq() 
 {
-  static uint8  LFOfreqStep[] = 
+  static uint8_t  LFOfreqStep[] = 
     { 5, 7, 10, 15, 20, 25, 30, 40, 50, 60, 70, 80, 100, 150, 200, 250 };  // 16 steps
   int  setting;
   bool doRefresh = FALSE;
@@ -1284,7 +1326,7 @@ void UserState_Set_LFO_RampTime()
   {
     setting = PotPosition() / 16;  // 0..15
     setting = timeValueQuantized[setting];  // one of 16 values
-    g_Patch.LFO_RampTime = (uint16) setting;  // range 5..5000
+    g_Patch.LFO_RampTime = (uint16_t) setting;  // range 5..5000
     doRefresh = TRUE;
   }
 
@@ -1325,7 +1367,7 @@ void UserState_Set_ENV_Attack()
     setting = PotPosition() / 16;  // 0..15
     setting = timeValueQuantized[setting];  // one of 16 values
     if (setting == 0)  setting = 5;  // minimum
-    g_Patch.EnvAttackTime = (uint16) setting;  // range 5..5000
+    g_Patch.EnvAttackTime = (uint16_t) setting;  // range 5..5000
     doRefresh = TRUE;
   }
 
@@ -1368,7 +1410,7 @@ void  UserState_Set_ENV_Hold()
   {
     setting = PotPosition() / 16;  // 0..15
     setting = timeValueQuantized[setting];  // one of 16 values
-    g_Patch.EnvHoldTime = (uint16) setting;  // range 0..5000
+    g_Patch.EnvHoldTime = (uint16_t) setting;  // range 0..5000
     doRefresh = TRUE;
   }
 
@@ -1413,7 +1455,7 @@ void  UserState_Set_ENV_Decay()
     setting = PotPosition() / 16;  // 0..15
     setting = timeValueQuantized[setting];  // one of 16 values
     if (setting == 0)  setting = 5;  // minimum
-    g_Patch.EnvDecayTime = (uint16) setting;  // range 5..5000
+    g_Patch.EnvDecayTime = (uint16_t) setting;  // range 5..5000
     doRefresh = TRUE;
   }
 
@@ -1508,7 +1550,7 @@ void UserState_Set_ENV_Release()
     setting = PotPosition() / 16;  // 0..15
     setting = timeValueQuantized[setting];  // one of 16 values
     if (setting == 0)  setting = 5;  // minimum
-    g_Patch.EnvReleaseTime = (uint16) setting;  // range 5..5000
+    g_Patch.EnvReleaseTime = (uint16_t) setting;  // range 5..5000
     doRefresh = TRUE;
   }
 
@@ -1530,7 +1572,7 @@ void UserState_Set_ENV_Release()
 
 void  UserState_Set_MixerGain()
 {
-  static uint8 optMixerGain_x10[] = { 2, 3, 5, 7, 10, 15, 20, 25, 33, 50 };
+  static uint8_t optMixerGain_x10[] = { 2, 3, 5, 7, 10, 15, 20, 25, 33, 50 };
   int  setting;
   bool doRefresh = FALSE;
 
@@ -1549,7 +1591,7 @@ void  UserState_Set_MixerGain()
   {
     setting = PotPosition() / 25;  // 0..10
     if (setting > 9)  setting = 9;  // 0..9 (index)
-    g_Patch.MixerOutGain_x10 = (uint16) optMixerGain_x10[setting];
+    g_Patch.MixerOutGain_x10 = (uint16_t) optMixerGain_x10[setting];
     doRefresh = TRUE;
   }
 
@@ -1617,7 +1659,8 @@ void  UserState_Calibrate_CV1()
 {
   static int  callsSinceLastRefresh;
   static int  aveReading_x256;  // ADC reading average, fixed-point (8-bit frac.)
-  int  uncalReading_mV, calibReading_mV, thisReading_mV;
+  int  uncalReading_mV, calibReading_mV;
+  int  thisReading_mV = analogRead(A1);  // 1st reading invalid, discarded
 
   // Read CV1 input and apply first-order IIR filter (rolling average), K = 1/8
   thisReading_mV = ((int) analogRead(A1) * 5100) / 4095;
@@ -1646,7 +1689,7 @@ void  UserState_Calibrate_CV1()
     Disp_SetFont(PROP_12_NORM);
     Disp_PosXY(4, 36);
     Disp_BlockClear(56, 12);  // clear existing data
-    Disp_PutDecimal((uint16) uncalReading_mV, 4);
+    Disp_PutDecimal((uint16_t) uncalReading_mV, 4);
     Disp_SetFont(PROP_8_NORM);
     Disp_PosXY(Disp_GetX(), 39);
     Disp_PutText(" mV");
@@ -1654,7 +1697,7 @@ void  UserState_Calibrate_CV1()
     Disp_SetFont(PROP_12_NORM);
     Disp_PosXY(72, 36);
     Disp_BlockClear(56, 12);  // clear existing data
-    Disp_PutDecimal((uint16) calibReading_mV, 4);
+    Disp_PutDecimal((uint16_t) calibReading_mV, 4);
     Disp_SetFont(PROP_8_NORM);
     Disp_PosXY(Disp_GetX(), 39);
     Disp_PutText(" mV");

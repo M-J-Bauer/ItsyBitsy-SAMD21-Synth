@@ -1,47 +1,70 @@
 /**
  *   File:    m0_synth_def.h 
  *
- *   Data definitions & declarations for SAMD21 'ItsyBitsy M0' sound synthesizer.
+ *   Data definitions & declarations for 'Sigma-6 M0' (SAMD21) sound synthesizers.
+ *   This file is generalized to suit all SAMD21-based synth hardware variants, but
+ *   must be customized to suit a particular synth hardware variant using #defines.
  */
 #ifndef M0_SYNTH_DEF_H
 #define M0_SYNTH_DEF_H
 
-#include "common_def.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
+#include <math.h>
 
-#define FIRMWARE_VERSION  "2.0"
+// Set TRUE for firmware to run on Sigma-6 mono VM with Robotdyn M0-Mini MCU;
+// Set FALSE for all other boards, including Sigma-6 Poly-6 Voice and Poly Master:
+#define MCU_PINS_D2_D4_REVERSED    FALSE
+#define BUILD_FOR_POLY_VOICE       FALSE   // TRUE => Build for Sigma-6 Poly voice
 
-#define USE_SAMD21_M0_MINI_MCU     FALSE  // TRUE => Robotdyn SAMD21 M0-MINI board
-
-// Other firmware build options -- set according to user preference...
-#define EEPROM_IS_INSTALLED        TRUE   // FALSE => EEPROM not installed!
-#define DEFAULT_MASTER_TUNING      0      // Master Tune parameter (-100 ~ +100 cents)
+// Firmware build options...........................
+#define EEPROM_IS_INSTALLED        FALSE  // FALSE => EEPROM not installed!
 #define APPLY_VELOCITY_EXPL_CURVE  FALSE  // TRUE => Apply "exponential" ampld curve
+#define APPLY_EXPRESSN_EXPL_CURVE  FALSE  // TRUE => Apply "exponential" ampld curve
 #define LEGATO_ENABLED_ALWAYS      FALSE  // TRUE => Legato Mode always enabled
 #define USE_SPI_DAC_FOR_AUDIO      TRUE   // FALSE => Use MCU on-chip DAC (pin A0)
 
-//=======================================================================================
-#if (USE_SAMD21_M0_MINI_MCU)  // Robotdyn MCU board...
+#if (MCU_PINS_D2_D4_REVERSED)  // Sigma-6 mono VM using Robotdyn MCU board...
 #define HOME_SCREEN_SYNTH_DESCR  "Voice Module"  // 12 chars max.
 #else  // assume Adafruit ItsyBitsy M0 Express
 #define HOME_SCREEN_SYNTH_DESCR  "ItsyBitsy M0"  // 12 chars max.
 #endif
 
-#define CV_MODE_JUMPER              7    // CV Mode jumper (JP1) input pin
-#define TESTPOINT1                 13    // Scope test-point pin
-#define TESTPOINT2                  5    // Scope test-point pin
-#define CHAN_SWITCH_S1             12    // MIDI channel-select switch S1 (bit 0)
-#define CHAN_SWITCH_S2             11    // MIDI channel-select switch S2 (bit 1)
-#define CHAN_SWITCH_S3             10    // MIDI channel-select switch S3 (bit 2)
-#define CHAN_SWITCH_S4              9    // MIDI channel-select switch S4 (bit 3)
-#define BUTTON_A_PIN                3    // Button [A] input (active low)
-#define GATE_INPUT                 19    // GATE input (digital, active High)
+// Do not modify code below this line...
+//===========================================================================================
 
-#if (USE_SAMD21_M0_MINI_MCU)  // Pins D2 and D4 are reversed on RobotDyn MCU board!
-#define BUTTON_B_PIN                2    // Button [B] input (active low)
-#define SPI_DAC_CS                  4    // DAC CS/ pin ID
+typedef signed long  fixed_t;     // 32-bit fixed point (20-bit fraction)
+typedef void (* pfnvoid)(void);   // pointer to void function
+
+#ifndef BOOL
+typedef unsigned char       BOOL;
+#endif
+#ifndef FALSE
+#define FALSE   (0)
+#define TRUE    (!FALSE)
+#endif
+
+// MCU I/O pin assignmernts.............
+#define CHAN_SWITCH_S1        12    // MIDI channel-select switch S1 (bit 0)
+#define CHAN_SWITCH_S2        11    // MIDI channel-select switch S2 (bit 1)
+#define CHAN_SWITCH_S3        10    // MIDI channel-select switch S3 (bit 2)
+#define CHAN_SWITCH_S4         9    // MIDI channel-select switch S4 (bit 3)
+#define TESTPOINT1            13    // Scope test-point pin
+#define TESTPOINT2             5    // Scope test-point pin
+#if (!BUILD_FOR_POLY_VOICE)         
+#define BUTTON_A_PIN           3    // Button [A] input (active low)
+#define CV_MODE_JUMPER         7    // CV Mode jumper (JP1) input pin
+#define GATE_INPUT            19    // GATE input (digital, active High)
+#endif
+
+#if (MCU_PINS_D2_D4_REVERSED)  // Sigma-6 mono VM using Robotdyn MCU board...
+#define BUTTON_B_PIN           2    // RobotDyn pinout (uncorrected)
+#define SPI_DAC_CS             4
 #else
-#define BUTTON_B_PIN                4
-#define SPI_DAC_CS                  2 
+#define BUTTON_B_PIN           4    // Adafruit pinout (& Arduino Zero)
+#define SPI_DAC_CS             2 
 #endif
 
 #define WAVE_TABLE_SIZE          2048    // nunber of samples
@@ -135,19 +158,19 @@ enum  Contour_Gen_Phases  // aka "segments"
 
 typedef struct table_of_configuration_params
 {
-  uint8   AudioAmpldCtrlMode;       // Override patch param AmpldControlSource
-  uint8   VibratoCtrlMode;          // Vibrato Control Mode, dflt: 0 (Off)
-  uint8   PitchBendMode;            // Pitch Bend Control Mode (0: disabled)
-  uint8   PitchBendRange;           // Pitch Bend range, semitones (1..12)
-  uint8   ReverbMix_pc;             // Reverb. wet/dry mix (0..100 %)
-  uint8   PresetLastSelected;       // Preset Last Selected (0..127)
-  uint8   Pitch_CV_BaseNote;        // Lowest note in Pitch CV range (MIDI #)
+  uint8_t AudioAmpldCtrlMode;       // Override patch param AmpldControlSource
+  uint8_t VibratoCtrlMode;          // Vibrato Control Mode, dflt: 0 (Off)
+  uint8_t PitchBendMode;            // Pitch Bend Control Mode (0: disabled)
+  uint8_t PitchBendRange;           // Pitch Bend range, semitones (1..12)
+  uint8_t ReverbMix_pc;             // Reverb. wet/dry mix (0..100 %)
+  uint8_t PresetLastSelected;       // Preset Last Selected (0..127)
+  uint8_t Pitch_CV_BaseNote;        // Lowest note in Pitch CV range (MIDI #)
   bool    Pitch_CV_Quantize;        // Quantize CV pitch to nearest semitone
   bool    CV_ModeAutoSwitch;        // CV Control Mode enabled by GATE+ signal
   bool    CV3_is_Velocity;          // CV3 input controls Velocity (with ENV1)
   short   CV1_FullScale_mV;         // CV1 input calibration constant (mV)
-  short   MasterTuneOffset;         // Pitch fine-tuning (+/-100 cents)
-  uint32  EEpromCheckWord;          // Data integrity check (*last entry*)
+  short   FineTuning_cents;         // Pitch fine-tuning (signed, +/-100 cents)
+  uint32_t  EEpromCheckWord;          // Data integrity check (*last entry*)
 
 } ConfigParams_t;
 
@@ -158,75 +181,75 @@ extern  ConfigParams_t  g_Config;     // structure holding configuration params
 //
 typedef  struct  synth_patch_param_table
 {
-  char   PresetName[24];        // Preset (patch) name, up to 22 chars
-  uint16 OscFreqMult[6];        // One of 12 options (encoded 0..11)
-  uint16 OscAmpldModSource[6];  // One of 10 options (encoded 0..9)
-  short  OscDetune[6];          // Unit = cents (range 0..+/-600)
-  uint16 MixerInputStep[6];     // Mixer Input Levels (encoded 0..16)
+  char     PresetName[24];        // Preset (patch) name, up to 22 chars
+  uint16_t OscFreqMult[6];        // One of 12 options (encoded 0..11)
+  uint16_t OscAmpldModSource[6];  // One of 10 options (encoded 0..9)
+  short    OscDetune[6];          // Unit = cents (range 0..+/-600)
+  uint16_t MixerInputStep[6];     // Mixer Input Levels (encoded 0..16)
   ////
-  uint16 EnvAttackTime;         // 5..5000+ ms
-  uint16 EnvHoldTime;           // 0..5000+ ms (if zero, skip Decay)
-  uint16 EnvDecayTime;          // 5..5000+ ms
-  uint16 EnvSustainLevel;       // Unit = 1/100 (range 0..100 %)
-  uint16 EnvReleaseTime;        // 5..5000+ ms
-  uint16 AmpControlMode;        // One of 4 options (encoded 0..3)
+  uint16_t EnvAttackTime;         // 5..5000+ ms
+  uint16_t EnvHoldTime;           // 0..5000+ ms (if zero, skip Decay)
+  uint16_t EnvDecayTime;          // 5..5000+ ms
+  uint16_t EnvSustainLevel;       // Unit = 1/100 (range 0..100 %)
+  uint16_t EnvReleaseTime;        // 5..5000+ ms
+  uint16_t AmpControlMode;        // One of 4 options (encoded 0..3)
   ////
-  uint16 ContourStartLevel;     // Unit = 1/100 (range 0..100 %)
-  uint16 ContourDelayTime;      // 0..5000+ ms
-  uint16 ContourRampTime;       // 5..5000+ ms
-  uint16 ContourHoldLevel;      // Unit = 1/100 (range 0..100 %)
-  uint16 Env2DecayTime;         // 5..5000+ ms
-  uint16 Env2SustainLevel;      // Unit = 1/100 (range 0..100 %)
+  uint16_t ContourStartLevel;     // Unit = 1/100 (range 0..100 %)
+  uint16_t ContourDelayTime;      // 0..5000+ ms
+  uint16_t ContourRampTime;       // 5..5000+ ms
+  uint16_t ContourHoldLevel;      // Unit = 1/100 (range 0..100 %)
+  uint16_t Env2DecayTime;         // 5..5000+ ms
+  uint16_t Env2SustainLevel;      // Unit = 1/100 (range 0..100 %)
   ////
-  uint16 LFO_Freq_x10;          // LFO frequency x10 (range 5..250)
-  uint16 LFO_RampTime;          // 5..5000+ ms
-  uint16 LFO_FM_Depth;          // Unit = 1/100 semitone (cents, max. 600)
-  uint16 LFO_AM_Depth;          // Unit = 1/100 (0..100 %FS)
-  uint16 MixerOutGain_x10;      // Unit = 1/10  (value = gain x10, 0..100)
-  uint16 LimiterLevelPc;        // Audio limiter level (%), 0: Disabled
+  uint16_t LFO_Freq_x10;          // LFO frequency x10 (range 5..250)
+  uint16_t LFO_RampTime;          // 5..5000+ ms
+  uint16_t LFO_FM_Depth;          // Unit = 1/100 semitone (cents, max. 600)
+  uint16_t LFO_AM_Depth;          // Unit = 1/100 (0..100 %FS)
+  uint16_t MixerOutGain_x10;      // Unit = 1/10  (value = gain x10, 0..100)
+  uint16_t LimiterLevelPc;        // Audio limiter level (%), 0: Disabled
 
 } PatchParamTable_t;
 
 extern  const   PatchParamTable_t  g_PresetPatch[];
 extern  PatchParamTable_t  g_Patch;   // Active patch data
 
-extern  const   short   g_sine_wave[];
-extern  const   uint16  g_base2exp[];
-extern  const   float   g_FreqMultConst[];
-extern  const   uint16  g_MixerInputLevel[];
+extern  const   short     g_sine_wave[];
+extern  const   uint16_t  g_base2exp[];
+extern  const   float     g_FreqMultConst[];
+extern  const   uint16_t  g_MixerInputLevel[];
 
-extern  uint8  g_MidiChannel;        // 1..16  (16 = broadcast, omni)
-extern  uint8  g_MidiMode;           // OMNI_ON_MONO or OMNI_OFF_MONO
-extern  uint8  g_GateState;          // GATE signal state (de-bounced)
-extern  bool   g_DisplayEnabled;     // True if OLED is enabled
-extern  bool   g_CVcontrolMode;      // True if CV pitch control enabled
-extern  bool   g_MidiRxSignal;       // Signal MIDI message received
-extern  bool   g_EEpromFaulty;       // True if EEPROM error or not fitted
-extern  uint8  g_LegatoMode;         // Switch ON or OFF using MIDI CC68 msg
-extern  int    g_DebugData;
+extern  uint8_t  g_MidiChannel;        // 1..16  (16 = broadcast, omni)
+extern  uint8_t  g_MidiMode;           // OMNI_ON_MONO or OMNI_OFF_MONO
+extern  uint8_t  g_GateState;          // GATE signal state (de-bounced)
+extern  bool     g_DisplayEnabled;     // True if OLED is enabled
+extern  bool     g_CVcontrolMode;      // True if CV pitch control enabled
+extern  bool     g_MidiRxSignal;       // Signal MIDI message received
+extern  bool     g_EEpromFaulty;       // True if EEPROM error or not fitted
+extern  uint8_t  g_LegatoMode;         // Switch ON or OFF using MIDI CC68 msg
+extern  int      g_DebugData;
 
 extern  const  float  g_NoteFrequency[];
 
 // Functions defined in main source file ...
 //
 int    GetNumberOfPresets(void);
-void   PresetSelect(uint8 preset);
+void   PresetSelect(uint8_t preset);
 void   MidiInputService();
-void   ProcessMidiMessage(uint8 *midiMessage, short msgLength);
-void   ProcessControlChange(uint8 *midiMessage);
-void   ProcessMidiSystemExclusive(uint8 *midiMessage, short msgLength);
-int    MIDI_GetMessageLength(uint8 statusByte);
+void   ProcessMidiMessage(uint8_t *midiMessage, short msgLength);
+void   ProcessControlChange(uint8_t *midiMessage);
+void   ProcessMidiSystemExclusive(uint8_t *midiMessage, short msgLength);
+int    MIDI_GetMessageLength(uint8_t statusByte);
 void   CVinputService();
 void   DefaultConfigData(void);
-uint8  FetchConfigData(void);
+uint8_t  FetchConfigData(void);
 void   StoreConfigData(void);
 
 // Functions defined in "m0_synth_engine.c" ...
 //
 void   SynthPrepare();
-void   SynthNoteOn(uint8 note, uint8 vel);
-void   SynthNoteChange(uint8 note);
-void   SynthNoteOff(uint8 note);
+void   SynthNoteOn(uint8_t note, uint8_t vel);
+void   SynthNoteChange(uint8_t note);
+void   SynthNoteOff(uint8_t note);
 void   SynthPitchBend(int data14);
 void   SynthExpression(unsigned data14);
 void   SynthModulation(unsigned data14);
@@ -234,6 +257,7 @@ void   SynthProcess();
 void   SynthSetOscFrequency(float freq_Hz);
 void   SynthTriggerAttack();
 void   SynthTriggerRelease();
+void   SynthLFO_PhaseSync();
 
 
 #endif // M0_SYNTH_DEF_H
