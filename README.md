@@ -38,7 +38,7 @@ Steps to compile and "upload" the firmware:
       source file "ItsyBitsy_M0_synth.ino".)
     > Edit any applicable #define lines in the file "M0-synth-def.h" (see comments therein).
     > Connect the MCU board to a USB port on your computer.
-    > Select the board type 'Arduino Zero (Native USB)' if not already selected.
+    > Select the applicable board type (as noted above), if not already selected.
     > Compile the code and upload the firmware to your Sigma-6 synth module(s).
 
 NB: It may be necessary to reset the MCU and/or unplug and reconnect the USB cable to get the bootloader to start, 
