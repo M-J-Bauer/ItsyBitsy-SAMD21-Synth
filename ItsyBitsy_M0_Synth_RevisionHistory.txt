@@ -169,17 +169,22 @@ Button A advances selection to next bank.
 Revised all code files to use Arduino data types (uint8_t, uint16_t, etc).
 
 
+v2.4  24-OCT-2025
+`````````````````
+Revised file: m0_synth_def.h -- Unified for all Sigma-6 SAMD21 variants.
+Modified conditional compile directives accordingly.
+
+Recommended to select board type "Arduino Zero (Native USB)" in Arduino IDE,
+for hardware variants using Robotdyn SAMD21 M0-Mini board, because the core 
+start-up code utilizes the 32.768kHz crystal for the MCU system clock.
+
+
 
 --------------------------------------------------------------------------------
 
 To Do:  
 ```````
 > Refine preset 31 "Deep Sax" - make similar to Bass Overdrive, add osc AM.
-
-> 
-
-> 
-  Replace 'Cancel' button with 'Bank >' button.
 
 
 ________________________________________________________________________________
