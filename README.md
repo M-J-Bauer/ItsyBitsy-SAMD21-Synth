@@ -12,9 +12,13 @@ Download and install the latest version of Arduino IDE on your PC and follow the
 
 [Arduino IDE Setup](https://learn.adafruit.com/introducing-itsy-bitsy-m0/setup)
 
-Install the Adafruit SAMDxx Boards Manager. When you connect the board to your computer, Arduino usually determines the board type
-automatically, but in any case be sure to select board type 'Arduino Zero (Native USB)' for the firmware build.
-This is preferable to the 'Adafruit ItsyBitsy M0 Express' board package, because the Arduino Zero startup code enables 
+Install the Adafruit SAMDxx Boards Manager. When you connect the board to your computer, Arduino IDE usually determines the board type
+automatically, but in any case be sure to select the correct board type.
+
+If your synth module uses the Adafruit ItsyBitsy M0 Express board, select board type: 'Adafruit ItsyBitsy M0 Express' (of course).
+
+If your synth module uses the RobotDyn SAMD21 M0 Mini board, select board type: 'Arduino Zero (Native USB)' for the firmware build.
+This is preferable to the 'Adafruit ItsyBitsy M0 Express' board package, because the Arduino Zero startup code will enable
 the 32.768kHz crystal oscillator for the MCU system clock. The Adafruit ItsyBitsy M0 board uses the MCU internal 8MHz RC oscillator 
 which is not as precise or stable.
 
