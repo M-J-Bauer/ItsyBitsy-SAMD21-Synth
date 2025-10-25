@@ -1,4 +1,4 @@
-/*
+/*d
  * File:       ItsyBitsy_M0_synth (.ino)
  *
  * Project:    Sigma-6 Sound Synth / Voice Module
@@ -9,13 +9,13 @@
  *
  * Licence:    Open Source (Unlicensed) -- free to copy, distribute, modify
  *
- * Version:    2.3  (See Revision History file)
+ * Version:    2.4  24-OCT-2025  (See Revision History file)
  */
 #include <fast_samd21_tc3.h>
 #include <Wire.h>
 #include "m0_synth_def.h"
 
-#define FIRMWARE_VERSION  "2.2"
+#define FIRMWARE_VERSION  "2.4"  
 
 #define EEPROM_WRITE_INHIBIT()   {}    // Not used... WP tied to GND
 #define EEPROM_WRITE_ENABLE()    {}

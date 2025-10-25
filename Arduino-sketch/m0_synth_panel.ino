@@ -434,10 +434,10 @@ void UserState_StartupScreen()
     DisplayTitleBar("Start-up");
     Disp_SetFont(PROP_8_NORM);
     Disp_PosXY(4, 16);
-#if (MCU_PINS_D2_D4_REVERSED)  // assume Robotdyn MCU
-    Disp_PutText("MCU: Robotdyn M0 Mini");
-#else
+#if (!BUILD_FOR_POLY_VOICE && !MCU_PINS_D2_D4_REVERSED)
     Disp_PutText("MCU: Adafruit M0 Exprs");
+#else
+    Disp_PutText("MCU: Robotdyn M0 Mini");
 #endif
     Disp_PosXY(4, 28);
     Disp_PutText("Firmware version: ");
@@ -560,10 +560,10 @@ void UserState_HomeScreen()
     Disp_PutText(HOME_SCREEN_SYNTH_DESCR);  // see file m0_synth_def.h
     // Display logo at upper RHS according to MCU board type...
     Disp_PosXY(116, 0);
-#if (MCU_PINS_D2_D4_REVERSED)  // assume Robotdyn MCU
-    Disp_PutImage(RobotDyn_logo_11x11, 11, 11);
-#else  
+#if (!BUILD_FOR_POLY_VOICE && !MCU_PINS_D2_D4_REVERSED)
     Disp_PutImage(Adafruit_logo_11x12, 11, 12);
+#else  
+    Disp_PutImage(RobotDyn_logo_11x11, 11, 11);
 #endif
     Disp_PosXY(0, 28);
     Disp_DrawLineHoriz(128);

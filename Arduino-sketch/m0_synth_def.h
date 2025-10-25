@@ -1,9 +1,29 @@
 /**
  *   File:    m0_synth_def.h 
  *
- *   Data definitions & declarations for 'Sigma-6 M0' (SAMD21) sound synthesizers.
- *   This file is generalized to suit all SAMD21-based synth hardware variants, but
- *   must be customized to suit a particular synth hardware variant using #defines.
+ *   Data definitions & declarations for 'Sigma-6' (SAMD21) sound synthesizers.
+ *   This file must be customized to suit a particular synth variant as follows:
+ *   ``````````````````````````````````````````````````````````````````````````
+ *
+ *   Mono-synth/voice module using Adafruit M0 Express board:  
+ *           In Arduino IDE, select board: 'Adafruit ItsyBitsy M0 Express'
+ *           Set MCU_PINS_D2_D4_REVERSED to FALSE
+ *           Set BUILD_FOR_POLY_VOICE to FALSE
+ *           Set EEPROM_IS_INSTALLED to TRUE or FALSE as applicable
+ *
+ *   Mono-synth/voice module using RobotDyn M0 Mini board:
+ *           In Arduino IDE, select board: 'Arduino Zero (Native USB)'
+ *           Set MCU_PINS_D2_D4_REVERSED to TRUE
+ *           Set BUILD_FOR_POLY_VOICE to FALSE
+ *           Set EEPROM_IS_INSTALLED to TRUE or FALSE as applicable
+ *
+ *   POLY-synth/voice module using RobotDyn M0 Mini board:  
+ *           In Arduino IDE, select board: 'Arduino Zero (Native USB)'
+ *           Set MCU_PINS_D2_D4_REVERSED to FALSE
+ *           Set BUILD_FOR_POLY_VOICE to TRUE
+ *           Set EEPROM_IS_INSTALLED to FALSE
+ *           Set LEGATO_ENABLED_ALWAYS to TRUE
+ *           Set USE_SPI_DAC_FOR_AUDIO to TRUE
  */
 #ifndef M0_SYNTH_DEF_H
 #define M0_SYNTH_DEF_H
@@ -14,23 +34,18 @@
 #include <ctype.h>
 #include <math.h>
 
-// Set TRUE for firmware to run on Sigma-6 mono VM with Robotdyn M0-Mini MCU;
-// Set FALSE for all other boards, including Sigma-6 Poly-6 Voice and Poly Master:
-#define MCU_PINS_D2_D4_REVERSED    FALSE
-#define BUILD_FOR_POLY_VOICE       FALSE   // TRUE => Build for Sigma-6 Poly voice
+// Firmware build options...............
+#define MCU_PINS_D2_D4_REVERSED    TRUE   // See notes above
+#define BUILD_FOR_POLY_VOICE       FALSE  // FALSE => Build for Sigma-6 Mono-synth
+#define EEPROM_IS_INSTALLED        TRUE   // FALSE => EEPROM not installed
 
-// Firmware build options...........................
-#define EEPROM_IS_INSTALLED        FALSE  // FALSE => EEPROM not installed!
 #define APPLY_VELOCITY_EXPL_CURVE  FALSE  // TRUE => Apply "exponential" ampld curve
 #define APPLY_EXPRESSN_EXPL_CURVE  FALSE  // TRUE => Apply "exponential" ampld curve
-#define LEGATO_ENABLED_ALWAYS      FALSE  // TRUE => Legato Mode always enabled
+#define LEGATO_ENABLED_ALWAYS      FALSE  // FALSE => Allow Multi-trigger mode
 #define USE_SPI_DAC_FOR_AUDIO      TRUE   // FALSE => Use MCU on-chip DAC (pin A0)
 
-#if (MCU_PINS_D2_D4_REVERSED)  // Sigma-6 mono VM using Robotdyn MCU board...
-#define HOME_SCREEN_SYNTH_DESCR  "Voice Module"  // 12 chars max.
-#else  // assume Adafruit ItsyBitsy M0 Express
-#define HOME_SCREEN_SYNTH_DESCR  "ItsyBitsy M0"  // 12 chars max.
-#endif
+//#define HOME_SCREEN_SYNTH_DESCR  "Voice Module"  // 12 chars max.
+#define HOME_SCREEN_SYNTH_DESCR  "Mono-synth"  // 12 chars max.
 
 // Do not modify code below this line...
 //===========================================================================================
@@ -39,32 +54,33 @@ typedef signed long  fixed_t;     // 32-bit fixed point (20-bit fraction)
 typedef void (* pfnvoid)(void);   // pointer to void function
 
 #ifndef BOOL
-typedef unsigned char       BOOL;
+typedef unsigned char  BOOL;
 #endif
 #ifndef FALSE
 #define FALSE   (0)
 #define TRUE    (!FALSE)
 #endif
 
-// MCU I/O pin assignmernts.............
+// MCU I/O pin assignments......
 #define CHAN_SWITCH_S1        12    // MIDI channel-select switch S1 (bit 0)
 #define CHAN_SWITCH_S2        11    // MIDI channel-select switch S2 (bit 1)
 #define CHAN_SWITCH_S3        10    // MIDI channel-select switch S3 (bit 2)
 #define CHAN_SWITCH_S4         9    // MIDI channel-select switch S4 (bit 3)
-#define TESTPOINT1            13    // Scope test-point pin
-#define TESTPOINT2             5    // Scope test-point pin
-#if (!BUILD_FOR_POLY_VOICE)         
+#define TESTPOINT1            13    // Scope test-point pin (ISR)
+#define TESTPOINT2             5    // Scope test-point pin (GATE)
 #define BUTTON_A_PIN           3    // Button [A] input (active low)
+
+#if (!BUILD_FOR_POLY_VOICE)  // assume Sigma-6 Mono VM with CV inputs...
 #define CV_MODE_JUMPER         7    // CV Mode jumper (JP1) input pin
 #define GATE_INPUT            19    // GATE input (digital, active High)
 #endif
 
-#if (MCU_PINS_D2_D4_REVERSED)  // Sigma-6 mono VM using Robotdyn MCU board...
-#define BUTTON_B_PIN           2    // RobotDyn pinout (uncorrected)
-#define SPI_DAC_CS             4
+#if (MCU_PINS_D2_D4_REVERSED)
+#define BUTTON_B_PIN           2
+#define SPI_DAC_CS             4    // using Robotdyn M0 Mini pinout
 #else
-#define BUTTON_B_PIN           4    // Adafruit pinout (& Arduino Zero)
-#define SPI_DAC_CS             2 
+#define BUTTON_B_PIN           4
+#define SPI_DAC_CS             2    // using Adafruit M0 pinout
 #endif
 
 #define WAVE_TABLE_SIZE          2048    // nunber of samples
@@ -255,6 +271,7 @@ void   SynthExpression(unsigned data14);
 void   SynthModulation(unsigned data14);
 void   SynthProcess();
 void   SynthSetOscFrequency(float freq_Hz);
+void   SynthSetReverbMix(uint8_t rvbmix_pc);
 void   SynthTriggerAttack();
 void   SynthTriggerRelease();
 void   SynthLFO_PhaseSync();
