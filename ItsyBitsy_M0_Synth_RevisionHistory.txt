@@ -177,6 +177,60 @@ Modified conditional compile directives accordingly.
 Recommended to select board type "Arduino Zero (Native USB)" in Arduino IDE,
 for hardware variants using Robotdyn SAMD21 M0-Mini board, because the core 
 start-up code utilizes the 32.768kHz crystal for the MCU system clock.
+NB: The Adafruit M0 Express does not have a crystal!
+
+
+v2.5  07-JAN-2025
+`````````````````
+Added UI screen to set Keying Mode: Multi-trigger/Legato.
+The 'CV Options' screen is now accessible only via the 'Keying Mode' screen;
+it is not directly accessible from the 'Setup menu' screen.
+
+Legato mode is recommended for CV/gate operation and Monophonic MIDI controller
+operation (including EWI controllers). Multi-trigger mode is recommended for
+polyphonic MIDI controllers (keyboard, sequencer, etc).
+
+Refined preset/patch 31 "Deep Saxophoney".  Copied to Poly-Voice source file.
+
+
+v2.6  17-JAN-2025
+`````````````````
+Added UI screen to select MIDI channel which over-rides DIP switch setting.
+Channel defaults to DIP switch setting if EEPROM not fitted or data corrupted, 
+or if the OLED display is not fitted or not functioning.
+
+The 'Keying Mode' and 'CV Options' screens are now accessible directly
+from the 'SETUP' menu screen.  The 'CV Base Note' setting screen is
+still only accessible via the 'CV Options' screen -- Press [Next] button.
+
+Fixed some minor bugs, e.g:
+  -> Wrong bank displayed in 'Select Preset' screen (sometimes);
+  -> Wrong info displayed in 'Startup' screen if EEPROM faulty or missing.
+
+
+v2.7  31-JAN-2025
+`````````````````
+Fixed bug:  Config param's not defaulted on start-up if EEPROM not fitted.
+
+Removed temporary debug info (CV1 ADC reading) from Home screen!
+
+Minor changes to Startup screen, e.g. 'CV1 CAL' function always accessible.
+
+
+v2.8  02-FEB-2026
+`````````````````
+Fixed bug in Contour EG:  Added inverse output signal.
+
+Added "auto-detect" to set keying mode and audio amplitude control mode...
+These settings are initialized to persistent config. parameters on start-up.
+If a MIDI Breath Pressure message (CC02) is received, the keying mode is set
+to "Legato" and the audio ampld control mode is set to "Breath Control" (CC2).
+
+Replaced preset #10 with "Keith Emerson Organ" (was "Rock Organ #3).
+Modified preset #19 "Bellbird" -- now "Bellbird Recall".
+
+Added 32 more presets... banks 3 & 4... for further experimentation.
+See project web page for explanation of nomenclature.
 
 
 
@@ -184,7 +238,8 @@ start-up code utilizes the 32.768kHz crystal for the MCU system clock.
 
 To Do:  
 ```````
-> Refine preset 31 "Deep Sax" - make similar to Bass Overdrive, add osc AM.
+Refine presets 32 ~ 64 before release as v3.0.
+
 
 
 ________________________________________________________________________________
