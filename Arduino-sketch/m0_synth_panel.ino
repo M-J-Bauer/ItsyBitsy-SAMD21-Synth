@@ -26,7 +26,9 @@ enum User_Interface_States  // aka 'Screen identifiers'
   SELECT_PRESET,
   SETUP_MENU,
   // ... config settings ...
+  SET_MIDI_CHANNEL,
   SET_AMPLD_CTRL,
+  SET_KEYING_MODE,
   SET_VIBRATO_MODE,
   SET_PITCH_BEND,
   SET_REVERB_LEVEL,
@@ -45,34 +47,6 @@ enum User_Interface_States  // aka 'Screen identifiers'
   SET_MIXER_GAIN,
   SET_LIMITER_LVL
 };
-
-// ------------  Function prototype definitions  --------------------------------------
-//
-void UserState_StartupScreen();
-void UserState_Calibrate_CV1();
-void UserState_ConfirmDefault();
-void UserState_HomeScreen();
-void UserState_SelectPreset();
-void UserState_SetupMenu();
-//
-void UserState_SetAmpldControl();
-void UserState_SetVibratoMode();
-void UserState_SetPitchBend();
-void UserState_SetReverbLevel();
-void UserState_SetCVOptions();
-void UserState_SetCVBaseNote();
-void UserState_SetMasterTune();
-//
-void UserState_Set_LFO_FM_Depth();
-void UserState_Set_LFO_Freq();
-void UserState_Set_LFO_RampTime();
-void UserState_Set_ENV_Attack();
-void UserState_Set_ENV_Hold();
-void UserState_Set_ENV_Decay();
-void UserState_Set_ENV_Sustain();
-void UserState_Set_ENV_Release();
-void UserState_Set_MixerGain();
-void UserState_Set_LimiterLevel();
 
 /*
  * Bitmap image definition
@@ -383,9 +357,11 @@ void UserInterfaceTask(void)
     case SELECT_PRESET:      UserState_SelectPreset();       break;
     case SETUP_MENU:         UserState_SetupMenu();          break;
     //
+    case SET_MIDI_CHANNEL:   UserState_SetMidiChannel();     break;
     case SET_AMPLD_CTRL:     UserState_SetAmpldControl();    break;
+    case SET_KEYING_MODE:    UserState_SetKeyingMode();      break;
     case SET_VIBRATO_MODE:   UserState_SetVibratoMode();     break;
-    case SET_PITCH_BEND:     UserState_SetPitchBend();   break;
+    case SET_PITCH_BEND:     UserState_SetPitchBend();       break;
     case SET_REVERB_LEVEL:   UserState_SetReverbLevel();     break;
     case SET_CV_OPTIONS:     UserState_SetCVOptions();       break;
     case SET_CV_BASE_NOTE:   UserState_SetCVBaseNote();      break;
@@ -417,66 +393,64 @@ void UserState_StartupScreen()
   if (isNewScreen) 
   {
     stateTimer = 0;
-
-    if (g_EEpromFaulty && !doneEEpromCheck)  // EEPROM check... One time only
+    if (!doneEEpromCheck)  // EEPROM check... One time only
     {
-      if (EEPROM_IS_INSTALLED) DisplayTitleBar("<!> EEPROM Fault");
-      Disp_SetFont(MONO_8_NORM);
-      Disp_PosXY(8, 8);
-      if (!EEPROM_IS_INSTALLED) Disp_PutText("No EEPROM support!");
-      Disp_PosXY(8, 28);
-      Disp_PutText("* Using default");   
-      Disp_PosXY(8, 40);
-      Disp_PutText("  configuration.");  
-      return;
+      if (!EEPROM_IS_INSTALLED) DisplayTitleBar("<!>   No EEPROM");
+      else if (g_EEpromFault) DisplayTitleBar("<!>  EEPROM Fault");
+      if (!EEPROM_IS_INSTALLED || g_EEpromFault)
+      {
+        Disp_SetFont(MONO_8_NORM);
+        Disp_PosXY(0, 20);
+        Disp_PutText("* Loading default");   
+        Disp_PosXY(0, 30);
+        Disp_PutText("  configuration.");  
+      }
+      return;  // Next call: isNewScreen == FALSE
     }
 
+    // Following code is executed only after the EEPROM check is done...
+    // Then, the Startup screen is re-entered with isNewScreen TRUE for a second time.
     DisplayTitleBar("Start-up");
+    DisplayButtonLegend(BUTT_POS_A, "Cal CV1");
+    if (EEPROM_IS_INSTALLED && !g_EEpromFault) 
+      DisplayButtonLegend(BUTT_POS_B, "Default");
+    else  DisplayButtonLegend(BUTT_POS_B, "Home");
     Disp_SetFont(PROP_8_NORM);
     Disp_PosXY(4, 16);
-#if (!BUILD_FOR_POLY_VOICE && !MCU_PINS_D2_D4_REVERSED)
-    Disp_PutText("MCU: Adafruit M0 Exprs");
-#else
-    Disp_PutText("MCU: Robotdyn M0 Mini");
-#endif
+    if (!BUILD_FOR_POLY_VOICE && !MCU_PINS_D2_D4_REVERSED)
+      Disp_PutText("MCU: Adafruit M0 Exprs");
+    else  Disp_PutText("MCU: Robotdyn M0 Mini");
     Disp_PosXY(4, 28);
     Disp_PutText("Firmware version: ");
     Disp_SetFont(MONO_8_NORM);
     Disp_PutText(FIRMWARE_VERSION);  // defined in m0_synth_def.h
     Disp_SetFont(PROP_8_NORM);
     Disp_PosXY(4, 40);
+    Disp_PutText("MIDI channel: ");
+    Disp_SetFont(MONO_8_NORM);
+    if (g_MidiMode == OMNI_ON_MONO) Disp_PutText("Omni");  
+    else  Disp_PutDecimal(g_MidiChannel, 1);
+    //
+  } // endif (isNewScreen)
 
-    if (digitalRead(CV_MODE_JUMPER) == LOW)  // Show option to calibrate CV1 input
-    {
-      Disp_PutText("(Wait for Home screen)");
-      DisplayButtonLegend(BUTT_POS_A, "Cal CV1");
-    }
-    else  // started in MIDI mode... Show MIDI channel 
-    {
-      Disp_PutText("MIDI channel: ");
-      Disp_SetFont(MONO_8_NORM);
-      if (g_MidiMode == OMNI_ON_MONO) Disp_PutText("Omni");  
-      else  Disp_PutDecimal(g_MidiChannel, 1);
-      DisplayButtonLegend(BUTT_POS_A, "Home");
-    }
-    if (!g_EEpromFaulty) DisplayButtonLegend(BUTT_POS_B, "Default");
+  // Following code is executed on every call (50ms intervals) in the Startup screen
+  //
+  if (ButtonHit('A'))  GoToNextScreen(CALIBRATE_CV1);
+  if (ButtonHit('B'))
+  {
+    if (EEPROM_IS_INSTALLED && !g_EEpromFault) GoToNextScreen(CONFIRM_DEFAULT);
+    else  GoToNextScreen(HOME_SCREEN);
   }
 
-  if (ButtonHit('A'))
+  if (!doneEEpromCheck)
   {
-      if (digitalRead(CV_MODE_JUMPER) == LOW) GoToNextScreen(CALIBRATE_CV1);
-      else  GoToNextScreen(HOME_SCREEN);
-  }
-  if (ButtonHit('B') && !g_EEpromFaulty) GoToNextScreen(CONFIRM_DEFAULT);
-
-  if (g_EEpromFaulty && !doneEEpromCheck)
-  {
-    if (++stateTimer > 40)   // 2 sec time-out
-    { 
-      doneEEpromCheck = TRUE;
+    if (++stateTimer >= 40)  // timeout on message screen (2 sec)
+    {
+      doneEEpromCheck = TRUE; 
       Disp_ClearScreen();
       GoToNextScreen(STARTUP);  // Repeat startup without EEprom check
     }
+    if (EEPROM_IS_INSTALLED && !g_EEpromFault) stateTimer = 40; // no EEPROM issues
   }
   else if (++stateTimer > 100)  GoToNextScreen(HOME_SCREEN);  // 5 sec time-out
 }
@@ -530,6 +504,7 @@ void UserState_ConfirmDefault()
 
 void UserState_HomeScreen() 
 {
+  static uint16_t lastReadingA1, minReading, maxReading, count_1sec;  // Temp
   static uint8_t lastPresetShown;
   static short midiNoActivityTimer;  // unit = 50ms
   static bool  midiRxIconVisible;
@@ -570,10 +545,12 @@ void UserState_HomeScreen()
     
     DisplayButtonLegend(BUTT_POS_A, "PRESET");
     DisplayButtonLegend(BUTT_POS_B, "SETUP");
+    PotMoved();  // Clear 'pot moved' flag
     lastPresetShown = 255;  // force refresh
     CVmodeIndicated = FALSE;
     midiRxIconVisible = FALSE;
     gateIconVisible = FALSE;
+    minReading = 4100;  maxReading = 0;  count_1sec = 0;
   }
 
   if (PotMoved()) 
@@ -582,23 +559,25 @@ void UserState_HomeScreen()
     if (setting < 5)  setting = 5;
     if (setting > 100)  setting = 100;
     SH1106_SetContrast(setting);
+    if (INCLUDE_DEBUG_CODE)  { minReading = 4100;  maxReading = 0; }
   }
 
   if (ButtonHit('A')) GoToNextScreen(SELECT_PRESET);
   if (ButtonHit('B')) GoToNextScreen(SETUP_MENU);
 
-  // Refresh Preset displayed if selection changed...
+#if (!INCLUDE_DEBUG_CODE)  // Display PRESET number and name
   if (lastPresetShown != g_Config.PresetLastSelected) 
   {
-    Disp_PosXY(4, 36);
-    Disp_BlockClear(124, 8);  // erase existing line
+    Disp_PosXY(0, 36);
+    Disp_BlockClear(128, 8);  // erase existing line
     Disp_SetFont(MONO_8_NORM);
-    Disp_PutDecimal(g_Config.PresetLastSelected, 2);  // Preset #
+    Disp_PutDecimal(g_Config.PresetLastSelected, 2);
     Disp_PutChar(' ');
-    if (strlen(presetName) > 20) Disp_SetFont(PROP_8_NORM);
-    Disp_PutText(presetName);
+    if (strlen(presetName) > 17) Disp_SetFont(PROP_8_NORM);
+    Disp_PutText(presetName);  // Write Preset Name
     lastPresetShown = g_Config.PresetLastSelected;
   }
+#endif  
 
   if (g_MidiRxSignal && !midiRxIconVisible)  // MIDI message incoming
   {
@@ -644,12 +623,30 @@ void UserState_HomeScreen()
     Disp_BlockClear(12, 8);
     CVmodeIndicated = FALSE;
   }
+
+#if (INCLUDE_DEBUG_CODE)
+  // Show ADC input A1 reading deviation (counts)
+  // Update display once every second.
+  // lastReadingA1 = analogRead(A1);
+  lastReadingA1 = g_CV1readingFilt >> 16;  // integer part
+  if (lastReadingA1 > maxReading) maxReading = lastReadingA1;
+  if (lastReadingA1 < minReading) minReading = lastReadingA1;
+  if (++count_1sec >= 20)  // 20 x 50mx = 1000ms
+  {
+    count_1sec = 0;
+    Disp_PosXY(96, 32);
+    Disp_BlockClear(32, 20);  // erase existing data
+    Disp_SetFont(MONO_8_NORM);
+    Disp_PutDecimal(minReading, 4);
+    Disp_PosXY(96, 42);
+    Disp_PutDecimal(maxReading, 4);
+  }
+#endif // debug code  
 }
 
 
 void UserState_SelectPreset() 
 {
-  static uint32_t timeSinceLastRefresh_ms;  // unit = ms
   static uint8_t  bank, setting;
   static bool settingChanged;
   uint8_t  numBanks = (GetNumberOfPresets() + 15) / 16;  // 16 presets per bank
@@ -667,7 +664,7 @@ void UserState_SelectPreset()
     Disp_PosXY(100, 16);
     Disp_PutText("Bank");
     setting = g_Config.PresetLastSelected;
-    settingChanged = TRUE;  // signal to refresh preset shown
+    bank = setting / 16;  // 0, 1, 2...
     doRefresh = TRUE;
   }
 
@@ -681,7 +678,7 @@ void UserState_SelectPreset()
 
   if (ButtonHit('A'))  // Select and exit
   {
-    PresetSelect(setting);
+    if (settingChanged) PresetSelect(setting);
     GoToNextScreen(HOME_SCREEN);
   }
   if (ButtonHit('B'))  // Next bank
@@ -696,57 +693,51 @@ void UserState_SelectPreset()
   if (doRefresh)  
   {
     Disp_SetFont(MONO_16_NORM);
-    Disp_PosXY(48, 20);  // Display preset #
+    Disp_PosXY(48, 20);  // Display preset ID number
     Disp_BlockClear(40, 16);
     Disp_PutDecimal(setting, 2);
     Disp_SetFont(PROP_12_BOLD);
     Disp_PosXY(112, 26);  // Show bank #
     Disp_BlockClear(8, 10);
     Disp_PutDecimal(bank+1, 1);
-    timeSinceLastRefresh_ms = 0;  // reset timer
-  }
-
-  if (settingChanged && timeSinceLastRefresh_ms >= 200)
-  {
+    // Display preset name
     presetName = (char *)g_PresetPatch[setting].PresetName;
-    if (strlen(presetName) > 20) Disp_SetFont(PROP_8_NORM);
+    if (strlen(presetName) >= 20) Disp_SetFont(PROP_8_NORM);
     else  Disp_SetFont(MONO_8_NORM);
     Disp_PosXY(4, 38);
     Disp_BlockClear(124, 8);  // erase existing line
-    Disp_PutText(presetName);  // Display preset name
-    settingChanged = FALSE;  // prevent repeat refresh
-    timeSinceLastRefresh_ms = 0;
+    Disp_PutText(presetName);
+    doRefresh = FALSE;
   }
-
-  timeSinceLastRefresh_ms += 50;  // Call period is 50ms
 }
 
 
 void UserState_SetupMenu() 
 {
-  static const char *parameterName[] = { "Ampld Control", "Vibrato", "Pitch Bend", "Reverb",
-    "CV Options", "Fine Tuning", "LFO Depth", "LFO Freq", "LFO Ramp", "ENV Attack", "ENV Hold",
-    "ENV Decay", "ENV Sustain", "ENV Release", "Mixer Gain", "Limiter"
-  };
+  static const char *parameterName[] = { "MIDI Channel", "Ampld Control", 
+     "Keying Mode", "Vibrato", "Pitch Bend", "Reverb", "CV Options", "Fine Tuning", 
+     "LFO Depth", "LFO Freq", "LFO Ramp", "ENV Attack", "ENV Hold", "ENV Decay", 
+     "ENV Sustain", "ENV Release", "Mixer Gain", "Limiter" };
   static uint8_t setting;
-  static bool  legatoIndicated;
   bool doRefresh = FALSE;
 
   if (isNewScreen) 
   {
-    DisplayTitleBar("   SETUP MENU");
+    DisplayTitleBar("  SETUP MENU");
+    Disp_PosXY(116, 1);
+    Disp_PutImage(config_icon_9x9, 9, 9);  // Config icon
     Disp_SetFont(PROP_8_NORM);
     Disp_PosXY(4, 18);
     Disp_PutText("Parameter to adjust:");
     DisplayButtonLegend(BUTT_POS_A, "Home");
     DisplayButtonLegend(BUTT_POS_B, "Select");
-    legatoIndicated = FALSE;
     doRefresh = TRUE;
   }
 
   if (PotMoved()) 
   {
-    setting = PotPosition() / 16;  // 0..16
+    setting = PotPosition() / 14;  // 0..18
+    if (setting > 17) setting = 17;  // 0..17
     doRefresh = TRUE;
   }
 
@@ -755,22 +746,25 @@ void UserState_SetupMenu()
   {
     switch (setting)
     {
-      case  0:  GoToNextScreen(SET_AMPLD_CTRL);    break;
-      case  1:  GoToNextScreen(SET_VIBRATO_MODE);  break;
-      case  2:  GoToNextScreen(SET_PITCH_BEND);    break;
-      case  3:  GoToNextScreen(SET_REVERB_LEVEL);  break;
-      case  4:  GoToNextScreen(SET_CV_OPTIONS);    break;
-      case  5:  GoToNextScreen(SET_MASTER_TUNE);   break;
-      case  6:  GoToNextScreen(SET_LFO_DEPTH);     break;
-      case  7:  GoToNextScreen(SET_LFO_FREQ);      break;
-      case  8:  GoToNextScreen(SET_LFO_RAMP);      break;
-      case  9:  GoToNextScreen(SET_ENV_ATTACK);    break;
-      case 10:  GoToNextScreen(SET_ENV_HOLD);      break; 
-      case 11:  GoToNextScreen(SET_ENV_DECAY);     break; 
-      case 12:  GoToNextScreen(SET_ENV_SUSTAIN);   break; 
-      case 13:  GoToNextScreen(SET_ENV_RELEASE);   break; 
-      case 14:  GoToNextScreen(SET_MIXER_GAIN);    break;
-      case 15:  GoToNextScreen(SET_LIMITER_LVL);   break;
+      case  0:  GoToNextScreen(SET_MIDI_CHANNEL);  break;
+      case  1:  GoToNextScreen(SET_AMPLD_CTRL);    break;
+      case  2:  GoToNextScreen(SET_KEYING_MODE);   break;
+      case  3:  GoToNextScreen(SET_VIBRATO_MODE);  break;
+      case  4:  GoToNextScreen(SET_PITCH_BEND);    break;
+      case  5:  GoToNextScreen(SET_REVERB_LEVEL);  break;
+      case  6:  GoToNextScreen(SET_CV_OPTIONS);    break;
+      case  7:  GoToNextScreen(SET_MASTER_TUNE);   break;
+      // Patch parameter setting...
+      case  8:  GoToNextScreen(SET_LFO_DEPTH);     break;
+      case  9:  GoToNextScreen(SET_LFO_FREQ);      break;
+      case 10:  GoToNextScreen(SET_LFO_RAMP);      break;
+      case 11:  GoToNextScreen(SET_ENV_ATTACK);    break;
+      case 12:  GoToNextScreen(SET_ENV_HOLD);      break; 
+      case 13:  GoToNextScreen(SET_ENV_DECAY);     break; 
+      case 14:  GoToNextScreen(SET_ENV_SUSTAIN);   break; 
+      case 15:  GoToNextScreen(SET_ENV_RELEASE);   break; 
+      case 16:  GoToNextScreen(SET_MIXER_GAIN);    break;
+      case 17:  GoToNextScreen(SET_LIMITER_LVL);   break;
     } // end switch
   }
 
@@ -781,27 +775,62 @@ void UserState_SetupMenu()
     Disp_BlockClear(96, 12);  // clear existing data
     Disp_PutText(parameterName[setting]);
   }
+}
 
-  if (g_LegatoMode && !legatoIndicated)  // Indicate Legato Mode status
+
+void  UserState_SetMidiChannel()
+{
+  static uint8_t  setting;
+  bool  doRefresh = FALSE;
+
+  if (isNewScreen)
   {
-    Disp_SetFont(MONO_8_NORM);
-    Disp_PosXY(0, 1);
-    Disp_PutChar('^');
-    legatoIndicated = TRUE;
+    DisplayTitleBar("MIDI channel");
+    Disp_Mode(SET_PIXELS);
+    Disp_PosXY(116, 1);
+    Disp_PutImage(config_icon_9x9, 9, 9);  // Config icon
+    DisplayButtonLegend(BUTT_POS_A, "Exit");
+    DisplayButtonLegend(BUTT_POS_B, "Affirm");
+    setting = g_MidiChannel;  // Current setting
+    doRefresh = TRUE;
   }
-  else if (legatoIndicated && !g_LegatoMode)
+
+  if (PotMoved())
   {
-    Disp_PosXY(0, 1);
-    Disp_BlockClear(8, 8);  // erase
-    legatoIndicated = FALSE;
+    setting = PotPosition() / 16;  // 0..15
+    doRefresh = TRUE;
+  }
+
+  if (ButtonHit('A'))  GoToNextScreen(SETUP_MENU);  // Exit
+  if (ButtonHit('B'))  // Affirm...
+  {
+    g_MidiChannel = setting;  // Effective immediately and...
+    if (g_MidiChannel == 0) g_MidiMode = OMNI_ON_MONO;
+    else  g_MidiMode = OMNI_OFF_MONO;
+    g_Config.MidiChannel = setting;  // on next power-up
+    StoreConfigData();
+    GoToNextScreen(HOME_SCREEN);
+  }
+
+  if (doRefresh)
+  {
+    Disp_SetFont(PROP_12_BOLD);
+    Disp_PosXY(32, 24);
+    Disp_BlockClear(64, 16);
+    if (setting == 0) Disp_PutText("Omni ON");
+    else
+    {
+      Disp_SetFont(MONO_16_NORM);
+      Disp_PosXY(56, 24);
+      Disp_PutDecimal(setting, 1);
+    }
   }
 }
 
 
-void UserState_SetAmpldControl() 
+void  UserState_SetAmpldControl() 
 {
   static uint8_t setting;
-  static bool settingChanged;
   bool doRefresh = FALSE;
 
   if (isNewScreen) 
@@ -810,29 +839,24 @@ void UserState_SetAmpldControl()
     Disp_Mode(SET_PIXELS);
     Disp_PosXY(116, 1);
     Disp_PutImage(config_icon_9x9, 9, 9);  // Config icon
-    DisplayButtonLegend(BUTT_POS_A, "Cancel");
+    DisplayButtonLegend(BUTT_POS_A, "Exit");
     DisplayButtonLegend(BUTT_POS_B, "Affirm");
     setting = g_Config.AudioAmpldCtrlMode;
-    settingChanged = FALSE;
     doRefresh = TRUE;
   }
 
   if (PotMoved()) 
   {
     setting = (PotPosition() >> 5) & 3;  // 0..3 repeating
-    settingChanged = TRUE;
     doRefresh = TRUE;
   }
 
   if (ButtonHit('A'))  GoToNextScreen(SETUP_MENU);  // Exit
   if (ButtonHit('B'))  // Affirm
   {
-    if (settingChanged) 
-    {
-      g_Config.AudioAmpldCtrlMode = setting;
-      StoreConfigData();
-    }
-    GoToNextScreen(SET_VIBRATO_MODE);
+    g_Config.AudioAmpldCtrlMode = setting;
+    StoreConfigData();
+    GoToNextScreen(HOME_SCREEN);
   }
 
   if (doRefresh) 
@@ -854,7 +878,55 @@ void UserState_SetAmpldControl()
 }
 
 
-void UserState_SetVibratoMode() 
+void  UserState_SetKeyingMode()
+{
+  static uint8_t setting;
+  bool doRefresh = FALSE;
+
+  if (isNewScreen) 
+  {
+    DisplayTitleBar("Keying Mode");
+    Disp_PosXY(116, 1);
+    Disp_PutImage(config_icon_9x9, 9, 9);  // Config icon
+    Disp_SetFont(MONO_8_NORM);
+    Disp_PosXY(8, 20);
+    Disp_PutText("Multi-Trigger: ");
+    DisplayButtonLegend(BUTT_POS_A, "Exit");
+    DisplayButtonLegend(BUTT_POS_B, "Affirm");
+    setting = (g_Config.MultiTriggerEnab) ? 1 : 0;
+    doRefresh = TRUE;
+  }
+
+  if (PotMoved()) 
+  {
+    setting = (PotPosition() >> 4) & 1;  // alternating 0-1-0-1-0 ...
+    doRefresh = TRUE;
+  }
+
+  if (ButtonHit('A'))  GoToNextScreen(SETUP_MENU);  // Exit
+  if (ButtonHit('B'))  // Affirm new setting...
+  {
+    g_Config.MultiTriggerEnab = (setting & 1) ? TRUE : FALSE;
+    StoreConfigData();
+    SynthPrepare();
+    GoToNextScreen(SETUP_MENU);
+  }
+
+  if (doRefresh) 
+  {
+    Disp_SetFont(MONO_8_NORM);
+    Disp_PosXY(100, 20);
+    Disp_BlockClear(24, 8);  // erase existing data
+    if (setting & 1) Disp_PutText("ON");  else  Disp_PutText("OFF");
+    Disp_SetFont(PROP_8_NORM);
+    Disp_PosXY(32, 34);
+    Disp_BlockClear(80, 8);  // erase existing
+    if ((setting & 1) == 0) Disp_PutText("( Legato ON )");  
+  }
+}
+
+
+void  UserState_SetVibratoMode() 
 {
   static uint8_t setting;
   static bool settingChanged;
@@ -904,7 +976,7 @@ void UserState_SetVibratoMode()
 }
 
 
-void UserState_SetPitchBend()
+void  UserState_SetPitchBend()
 {
   static uint8_t setting;
   static bool settingChanged;
@@ -1042,7 +1114,7 @@ void UserState_SetCVOptions()
     Disp_PutText("CV3-> Velocity: ");
     Disp_PosXY(4, 40);
     Disp_PutText("CV Auto-switch: ");  // maximum of 3 CV Options
-    DisplayButtonLegend(BUTT_POS_A, "Cancel");
+    DisplayButtonLegend(BUTT_POS_A, "Next");
     DisplayButtonLegend(BUTT_POS_B, "Affirm");
     setting = (g_Config.Pitch_CV_Quantize) ? 1 : 0;
     setting += (g_Config.CV3_is_Velocity) ? 2 : 0;
@@ -1053,23 +1125,22 @@ void UserState_SetCVOptions()
 
   if (PotMoved()) 
   {
-    setting = (PotPosition() >> 4) & 7;  // 0..7 repeating
+    setting = PotPosition() >> 5;  // 0..7
     settingChanged = TRUE;
     doRefresh = TRUE;
   }
 
-  if (ButtonHit('A'))  GoToNextScreen(SET_CV_BASE_NOTE);  // Exit
+  if (ButtonHit('A'))  GoToNextScreen(SET_CV_BASE_NOTE);  // Next
   if (ButtonHit('B'))  // Affirm
   {
     if (settingChanged) 
     {
-      g_Config.Pitch_CV_Quantize = ((setting & 1) != 0);
-      g_Config.CV3_is_Velocity = ((setting & 2) != 0);
-      g_Config.CV_ModeAutoSwitch = ((setting & 4) != 0);
+      g_Config.Pitch_CV_Quantize = (setting & 1) ? TRUE : FALSE;
+      g_Config.CV3_is_Velocity = (setting & 2) ? TRUE : FALSE;
+      g_Config.CV_ModeAutoSwitch = (setting & 4) ? TRUE : FALSE;
       StoreConfigData();
       SynthPrepare();
-      if (!g_Config.CV_ModeAutoSwitch) 
-        g_CVcontrolMode = FALSE;  // MIDI control only
+      if (!g_Config.CV_ModeAutoSwitch) g_CVcontrolMode = FALSE;  // MIDI control only
     }
     GoToNextScreen(SET_CV_BASE_NOTE);
   }
@@ -1102,7 +1173,7 @@ void UserState_SetCVBaseNote()
     Disp_Mode(SET_PIXELS);
     Disp_PosXY(116, 1);
     Disp_PutImage(config_icon_9x9, 9, 9);  // Config icon
-    DisplayButtonLegend(BUTT_POS_A, "Cancel");
+    DisplayButtonLegend(BUTT_POS_A, "Exit");
     DisplayButtonLegend(BUTT_POS_B, "Affirm");
     setting = g_Config.Pitch_CV_BaseNote;
     settingChanged = FALSE;
@@ -1673,7 +1744,8 @@ void  UserState_Calibrate_CV1()
     Disp_SetFont(PROP_8_NORM);
     Disp_PosXY(0, 26);  Disp_PutText("Uncalibrated");
     Disp_PosXY(72, 26);  Disp_PutText("Adjusted");
-    DisplayButtonLegend(BUTT_POS_A, "Done");
+    DisplayButtonLegend(BUTT_POS_A, "Home");
+    DisplayButtonLegend(BUTT_POS_B, "Done");
     callsSinceLastRefresh = 0;
   }
 

@@ -1,7 +1,8 @@
 /*
  * File:       m0_synth_engine (.ino)
  *
- * Module:     Sigma-6 sound synthesizer implementation
+ * Module:     Sigma-6 sound synthesizer implementation.
+ *             This file is common to the ItsyBitsy M0 synth and Poly voice modules.
  *
  * Platform:   Adafruit 'ItsyBitsy M0 Express' or compatible (MCU: ATSAMD21G18)
  *
@@ -30,7 +31,7 @@ static long     m_OscStepInit[6];         // Osc phase step values at Note-On
 static long     m_OscStepDetune[6];       // Osc phase step values with de-tune applied
 static bool     m_OscMuted[6];            // True if osc freq > 0.4 x SAMPLE_RATE_HZ
 static long     m_LFO_PhaseAngle;         // LFO "phase angle" (24:8 bit fixed-point)
-static long     m_LFO_Step;               // LFO "phase step" (fixed-point format)
+static long     m_LFO_Step;               // LFO "phase step"  (24:8 bit fixed-point)
 static fixed_t  m_LFO_output;             // LFO output signal, normalized, bipolar (+/-1.0)
 static fixed_t  m_RampOutput;             // Vibrato Ramp output level,  normalized (0..+1)
 static fixed_t  m_ExpressionLevel;        // Expression level, normalized, unipolar (0..+1)
@@ -39,7 +40,8 @@ static fixed_t  m_PitchBendFactor;        // Pitch-Bend factor, normalized, bipo
 
 static fixed_t  m_ENV1_Output;            // Envelope Generator #1 output  (0 ~ 1.0)
 static fixed_t  m_ENV2_Output;            // Envelope Generator #2 output  (0 ~ 1.0)
-static fixed_t  m_ContourOutput;          // Contour EG output, normalized (0 ~ 1.0)
+static fixed_t  m_ContourOutputPos;       // Contour EG output, normalized (0 ~ 1.0)
+static fixed_t  m_ContourOutputNeg;       // Contour EG output, inverted   (0 ~ 1.0)
 static fixed_t  m_KeyVelocity;            // Note-On Velocity, normalized  (0 ~ 1.0)
 static bool     m_TriggerAttack1;         // Signal to put ENV1 into attack
 static bool     m_TriggerRelease1;        // Signal to put ENV1 into release
@@ -344,11 +346,19 @@ fixed_t  GetPitchBendFactor()
  * Output:       m_ModulationLevel, normalized fixed-pt number in the range 0..+1.0.
  *
  */
-void   SynthModulation(unsigned data14)
+void  SynthModulation(unsigned data14)
 {
   if (data14 < (16 * 1024))
     m_ModulationLevel = (fixed_t) ((uint32_t) data14 << 6);
   else  m_ModulationLevel = FIXED_MAX_LEVEL;
+}
+
+
+// Set the local variable m_RvbMix - unit = percent (%)
+//
+void  SynthSetReverbMix(uint8_t rvbmix_pc)
+{
+  if (rvbmix_pc <= 100) m_RvbMix = rvbmix_pc;
 }
 
 
@@ -579,7 +589,8 @@ void   TransientEnvelopeGen()
  * Overview:  Routine called by the Synth Process at 1ms intervals.
  *            All segments of the Contour shape are linear time-varying.
  *
- * Output:    (fixed_t) m_ContourOutput = output signal, normalized (0..+1.00)
+ * Output:    (fixed_t) m_ContourOutputPos = output signal, normalized (0..+1.00)
+ *            (fixed_t) m_ContourOutputNeg = output signal, inverted (0..+1.00)
  */
 void  ContourGenerator()
 {
@@ -594,7 +605,8 @@ void  ContourGenerator()
     m_TriggerContour = 0;
     startLevel = IntToFixedPt(g_Patch.ContourStartLevel) / 100;
     holdLevel = IntToFixedPt(g_Patch.ContourHoldLevel) / 100;
-    m_ContourOutput = startLevel;
+    m_ContourOutputPos = startLevel;
+    m_ContourOutputNeg = holdLevel;
     outputDelta = (holdLevel - startLevel) / g_Patch.ContourRampTime;
     segmentTimer = 0;
     contourSegment = CONTOUR_DELAY;
@@ -626,12 +638,17 @@ void  ContourGenerator()
   {
     if (++segmentTimer >= g_Patch.ContourRampTime)  // Ramp segment ended
       contourSegment = CONTOUR_HOLD;
-    else  m_ContourOutput += outputDelta;
+    else  
+    {
+        m_ContourOutputPos += outputDelta;
+        m_ContourOutputNeg -= outputDelta;
+    }
     break;
   }
   case CONTOUR_HOLD:  // Hold constant level - waiting for Note-Off event to reset
   {
-    m_ContourOutput = holdLevel;
+    m_ContourOutputPos = holdLevel;
+    m_ContourOutputNeg = startLevel;
     break;
   }
   };  // end switch
@@ -842,7 +859,7 @@ void   OscFreqModulation()
   fixed_t freqDevn;        // deviation from median freq. (x0.5 .. x2.0)
   long   oscStep;         // temporary for calc'n (16:16 bit fix-pt)
   long   oscFreqLFO;      // 24:8 bit fixed-point format (8-bit fraction)
-  short   osc, cents;
+  short  osc, cents;
 
   oscFreqLFO = (((int) g_Patch.LFO_Freq_x10) << 8) / 10;  // 24:8 bit fixed-pt
   m_LFO_Step = (oscFreqLFO * WAVE_TABLE_SIZE) / 1000;  // LFO Fs = 1000Hz
@@ -905,9 +922,9 @@ void  OscAmpldModulation()
   {
     // Determine Ampld Modulation factor for each oscillator
     if (g_Patch.OscAmpldModSource[osc] == OSC_MODN_SOURCE_CONT_POS)
-      v_OscAmpldModn[osc] = m_ContourOutput >> 10;  // 0..1024
+      v_OscAmpldModn[osc] = m_ContourOutputPos >> 10;  // 0..1024
     else if (g_Patch.OscAmpldModSource[osc] == OSC_MODN_SOURCE_CONT_NEG)
-      v_OscAmpldModn[osc] = 1024 - (m_ContourOutput >> 10);  // 1024..0
+      v_OscAmpldModn[osc] = m_ContourOutputNeg >> 10;  // 1024..0
     else if (g_Patch.OscAmpldModSource[osc] == OSC_MODN_SOURCE_ENV2)
       v_OscAmpldModn[osc] = m_ENV2_Output >> 10;  // 0..1024
     else if (g_Patch.OscAmpldModSource[osc] == OSC_MODN_SOURCE_MODN)

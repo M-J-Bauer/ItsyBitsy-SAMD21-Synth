@@ -1,29 +1,27 @@
 /**
  *   File:    m0_synth_def.h 
  *
- *   Data definitions & declarations for 'Sigma-6' (SAMD21) sound synthesizers.
- *   This file must be customized to suit a particular synth variant as follows:
+ *   Data definitions & declarations for 'Sigma-6' sound synthesizers.
+ *   This header file is common to all SAMD21-based 'Sigma-6' voice modules,
+ *   but must be customized to suit a particular synth variant as follows:
  *   ``````````````````````````````````````````````````````````````````````````
- *
- *   Mono-synth/voice module using Adafruit M0 Express board:  
+ *   Mono-synth voice module using Adafruit M0 Express board:  
  *           In Arduino IDE, select board: 'Adafruit ItsyBitsy M0 Express'
  *           Set MCU_PINS_D2_D4_REVERSED to FALSE
  *           Set BUILD_FOR_POLY_VOICE to FALSE
  *           Set EEPROM_IS_INSTALLED to TRUE or FALSE as applicable
  *
- *   Mono-synth/voice module using RobotDyn M0 Mini board:
+ *   Mono-synth voice module using RobotDyn M0 Mini board:
  *           In Arduino IDE, select board: 'Arduino Zero (Native USB)'
  *           Set MCU_PINS_D2_D4_REVERSED to TRUE
  *           Set BUILD_FOR_POLY_VOICE to FALSE
  *           Set EEPROM_IS_INSTALLED to TRUE or FALSE as applicable
  *
- *   POLY-synth/voice module using RobotDyn M0 Mini board:  
+ *   POLY-synth voice module using RobotDyn M0 Mini board:  
  *           In Arduino IDE, select board: 'Arduino Zero (Native USB)'
  *           Set MCU_PINS_D2_D4_REVERSED to FALSE
  *           Set BUILD_FOR_POLY_VOICE to TRUE
  *           Set EEPROM_IS_INSTALLED to FALSE
- *           Set LEGATO_ENABLED_ALWAYS to TRUE
- *           Set USE_SPI_DAC_FOR_AUDIO to TRUE
  */
 #ifndef M0_SYNTH_DEF_H
 #define M0_SYNTH_DEF_H
@@ -35,17 +33,18 @@
 #include <math.h>
 
 // Firmware build options...............
-#define MCU_PINS_D2_D4_REVERSED    TRUE   // See notes above
+#define MCU_PINS_D2_D4_REVERSED    FALSE  // See notes above
 #define BUILD_FOR_POLY_VOICE       FALSE  // FALSE => Build for Sigma-6 Mono-synth
 #define EEPROM_IS_INSTALLED        TRUE   // FALSE => EEPROM not installed
 
 #define APPLY_VELOCITY_EXPL_CURVE  FALSE  // TRUE => Apply "exponential" ampld curve
 #define APPLY_EXPRESSN_EXPL_CURVE  FALSE  // TRUE => Apply "exponential" ampld curve
-#define LEGATO_ENABLED_ALWAYS      FALSE  // FALSE => Allow Multi-trigger mode
 #define USE_SPI_DAC_FOR_AUDIO      TRUE   // FALSE => Use MCU on-chip DAC (pin A0)
+#define INCLUDE_DEBUG_CODE         FALSE  // FALSE => Normal build for release
 
-//#define HOME_SCREEN_SYNTH_DESCR  "Voice Module"  // 12 chars max.
-#define HOME_SCREEN_SYNTH_DESCR  "Mono-synth"  // 12 chars max.
+#define HOME_SCREEN_SYNTH_DESCR  "Voice Module"  // 12 chars max.
+//#define HOME_SCREEN_SYNTH_DESCR  "Mono Voice"  // 12 chars max.
+//#define HOME_SCREEN_SYNTH_DESCR  "Mono-synth"  // 12 chars max.
 
 // Do not modify code below this line...
 //===========================================================================================
@@ -174,6 +173,7 @@ enum  Contour_Gen_Phases  // aka "segments"
 
 typedef struct table_of_configuration_params
 {
+  uint8_t MidiChannel;              // Used only if EEPROM and OLED are OK
   uint8_t AudioAmpldCtrlMode;       // Override patch param AmpldControlSource
   uint8_t VibratoCtrlMode;          // Vibrato Control Mode, dflt: 0 (Off)
   uint8_t PitchBendMode;            // Pitch Bend Control Mode (0: disabled)
@@ -184,9 +184,10 @@ typedef struct table_of_configuration_params
   bool    Pitch_CV_Quantize;        // Quantize CV pitch to nearest semitone
   bool    CV_ModeAutoSwitch;        // CV Control Mode enabled by GATE+ signal
   bool    CV3_is_Velocity;          // CV3 input controls Velocity (with ENV1)
+  bool    MultiTriggerEnab;         // True to enable Multi-trigger keying mode
   short   CV1_FullScale_mV;         // CV1 input calibration constant (mV)
   short   FineTuning_cents;         // Pitch fine-tuning (signed, +/-100 cents)
-  uint32_t  EEpromCheckWord;          // Data integrity check (*last entry*)
+  uint32_t  EEpromCheckWord;        // Data integrity check (*last entry*)
 
 } ConfigParams_t;
 
@@ -240,8 +241,7 @@ extern  uint8_t  g_GateState;          // GATE signal state (de-bounced)
 extern  bool     g_DisplayEnabled;     // True if OLED is enabled
 extern  bool     g_CVcontrolMode;      // True if CV pitch control enabled
 extern  bool     g_MidiRxSignal;       // Signal MIDI message received
-extern  bool     g_EEpromFaulty;       // True if EEPROM error or not fitted
-extern  uint8_t  g_LegatoMode;         // Switch ON or OFF using MIDI CC68 msg
+extern  bool     g_EEpromFault;        // True if EEPROM error on start-up
 extern  int      g_DebugData;
 
 extern  const  float  g_NoteFrequency[];
