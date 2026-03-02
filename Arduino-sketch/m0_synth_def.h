@@ -33,18 +33,19 @@
 #include <math.h>
 
 // Firmware build options...............
-#define MCU_PINS_D2_D4_REVERSED    FALSE  // See notes above
+#define MCU_PINS_D2_D4_REVERSED    TRUE   // See notes above
 #define BUILD_FOR_POLY_VOICE       FALSE  // FALSE => Build for Sigma-6 Mono-synth
 #define EEPROM_IS_INSTALLED        TRUE   // FALSE => EEPROM not installed
 
+#define BUILD_FOR_EWI_CONTROLLER   FALSE  // FALSE => Build for keyboard or sequencer
 #define APPLY_VELOCITY_EXPL_CURVE  FALSE  // TRUE => Apply "exponential" ampld curve
 #define APPLY_EXPRESSN_EXPL_CURVE  FALSE  // TRUE => Apply "exponential" ampld curve
 #define USE_SPI_DAC_FOR_AUDIO      TRUE   // FALSE => Use MCU on-chip DAC (pin A0)
 #define INCLUDE_DEBUG_CODE         FALSE  // FALSE => Normal build for release
 
-#define HOME_SCREEN_SYNTH_DESCR  "Voice Module"  // 12 chars max.
+//#define HOME_SCREEN_SYNTH_DESCR  "Voice Module"  // 12 chars max.
 //#define HOME_SCREEN_SYNTH_DESCR  "Mono Voice"  // 12 chars max.
-//#define HOME_SCREEN_SYNTH_DESCR  "Mono-synth"  // 12 chars max.
+#define HOME_SCREEN_SYNTH_DESCR  "Mono-synth"  // 12 chars max.
 
 // Do not modify code below this line...
 //===========================================================================================

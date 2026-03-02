@@ -36,6 +36,7 @@ enum User_Interface_States  // aka 'Screen identifiers'
   SET_CV_BASE_NOTE,
   SET_MASTER_TUNE,   
   // ... patch settings ...
+  SET_MIXER_LEVELS,
   SET_LFO_DEPTH,
   SET_LFO_FREQ,
   SET_LFO_RAMP,
@@ -129,6 +130,8 @@ const uint8_t  percentLogScale[] =       // 16 values, 3dB log scale (approx.)
 const uint16_t timeValueQuantized[] =     // 16 values, logarithmic scale
         { 0, 10, 20, 30, 50, 70, 100, 200, 300, 500, 700, 1000, 1500, 2000, 3000, 5000 };
 
+const uint8_t  oscFreqMultConst[] =     // Dummy values at idx = 0, 2, 3 (non-integer)
+        { 0, 1, 0, 0, 2, 3, 4, 5, 6, 7, 8, 9, 0, 0, 0, 0 };
 
 //===================   P U S H - B U T T O N   F U N C T I O N S  ======================
 //
@@ -367,6 +370,7 @@ void UserInterfaceTask(void)
     case SET_CV_BASE_NOTE:   UserState_SetCVBaseNote();      break;
     case SET_MASTER_TUNE:    UserState_SetMasterTune();      break;
     //
+    case SET_MIXER_LEVELS:   UserState_Set_MixerLevels();    break;
     case SET_LFO_DEPTH:      UserState_Set_LFO_FM_Depth();   break;
     case SET_LFO_FREQ:       UserState_Set_LFO_Freq();       break;
     case SET_LFO_RAMP:       UserState_Set_LFO_RampTime();   break;  
@@ -715,9 +719,9 @@ void UserState_SelectPreset()
 void UserState_SetupMenu() 
 {
   static const char *parameterName[] = { "MIDI Channel", "Ampld Control", 
-     "Keying Mode", "Vibrato", "Pitch Bend", "Reverb", "CV Options", "Fine Tuning", 
-     "LFO Depth", "LFO Freq", "LFO Ramp", "ENV Attack", "ENV Hold", "ENV Decay", 
-     "ENV Sustain", "ENV Release", "Mixer Gain", "Limiter" };
+      "Keying Mode", "Vibrato", "Pitch Bend", "Reverb", "CV Options", "Fine Tuning", 
+      "Mixer Levels", "LFO Depth", "LFO Freq", "ENV Attack", "ENV Hold", "ENV Decay",
+      "ENV Sustain", "ENV Release", "Mixer Gain", "Limiter" };
   static uint8_t setting;
   bool doRefresh = FALSE;
 
@@ -755,9 +759,9 @@ void UserState_SetupMenu()
       case  6:  GoToNextScreen(SET_CV_OPTIONS);    break;
       case  7:  GoToNextScreen(SET_MASTER_TUNE);   break;
       // Patch parameter setting...
-      case  8:  GoToNextScreen(SET_LFO_DEPTH);     break;
-      case  9:  GoToNextScreen(SET_LFO_FREQ);      break;
-      case 10:  GoToNextScreen(SET_LFO_RAMP);      break;
+      case  8:  GoToNextScreen(SET_MIXER_LEVELS);  break;
+      case  9:  GoToNextScreen(SET_LFO_DEPTH);     break;
+      case 10:  GoToNextScreen(SET_LFO_FREQ);      break;
       case 11:  GoToNextScreen(SET_ENV_ATTACK);    break;
       case 12:  GoToNextScreen(SET_ENV_HOLD);      break; 
       case 13:  GoToNextScreen(SET_ENV_DECAY);     break; 
@@ -1150,11 +1154,11 @@ void UserState_SetCVOptions()
     Disp_SetFont(MONO_8_NORM);
     Disp_PosXY(104, 20);
     Disp_BlockClear(24, 30);  // erase existing data
-    if (setting & 1)  Disp_PutText("ON");  else  Disp_PutText("OFF");
+    if (setting & 1)  Disp_PutText("ON");  else  Disp_PutText("OFF");  // Pitch_CV_Quantize
     Disp_PosXY(104, 30);
-    if (setting & 2)  Disp_PutText("ON");  else  Disp_PutText("OFF");
+    if (setting & 2)  Disp_PutText("ON");  else  Disp_PutText("OFF");  // CV3_is_Velocity
     Disp_PosXY(104, 40);
-    if (setting & 4)  Disp_PutText("ON");  else  Disp_PutText("OFF");
+    if (setting & 4)  Disp_PutText("ON");  else  Disp_PutText("OFF");  // CV_ModeAutoSwitch
   }
 }
 
@@ -1275,6 +1279,128 @@ void UserState_SetMasterTune()
     else if (setting > 0)  Disp_PutChar('+');
     else  Disp_PutChar(' '); 
     Disp_PutDecimal(absValue, 2);
+  }
+}
+
+
+void  UserState_Set_MixerLevels()  // Oscillator Mixer Input Levels
+{
+  static uint8_t  oscSelected;
+  static uint8_t  cycleState, cycleCount;  // counter unit = 50ms
+  uint8_t  idx, osc, level, xpos, ypos, setting;
+  bool  doRefresh = FALSE;
+
+  if (isNewScreen)  // Render constant screen image
+  {
+    Disp_SetFont(PROP_8_NORM);
+    Disp_Mode(SET_PIXELS);
+    Disp_PosXY(3, 1);
+    Disp_PutText("OSC");
+    Disp_PosXY(0, 10);
+    Disp_PutText("Freq");
+    PotMoved();  // clear 'pot moved' flag
+    oscSelected = 0;  // begin with OSC #1 selected
+    cycleState = 0;
+    for (osc = 0;  osc < 6;  osc++)
+    {
+      // Show Osc. numbers 1..6, hi-lighted, top of screen
+      xpos = 26 + osc * 16;
+      Disp_Mode(SET_PIXELS);
+      Disp_PosXY(xpos, 0);
+      Disp_DrawBar(12, 9);
+      Disp_Mode(CLEAR_PIXELS);  // invert pixels
+      Disp_SetFont(MONO_8_NORM);
+      Disp_PosXY(xpos + 4, 1);
+      Disp_PutDecimal(osc + 1, 1);  // 1..6
+      // Show Osc. Freq. Multiplier settings
+      xpos = 26 + osc * 16;
+      idx = g_Patch.OscFreqMult[osc];  // range 0..11 (1 of 12 options)
+      Disp_Mode(SET_PIXELS);
+      Disp_SetFont(PROP_8_NORM);
+      Disp_PosXY(xpos, 11);
+      if (idx == 0) Disp_PutText("1'2");  // 0.5 x fo
+      else if (idx == 2) Disp_PutText("4'3");  // 1.333 x fo
+      else if (idx == 3) Disp_PutText("3'2");  // 1.5 x fo
+      else
+      {
+        Disp_SetFont(MONO_8_NORM);
+        Disp_PosXY(xpos + 4, 11);
+        Disp_PutDecimal(oscFreqMultConst[idx], 1);  // single digit (1..9)
+      }
+      // Show current mixer levels as numeric values
+      Disp_SetFont(MONO_8_NORM);
+      level = g_Patch.MixerInputStep[osc];
+      xpos = 26 + osc * 16;
+      Disp_PosXY(xpos, 56);  // erase existing value
+      Disp_BlockClear(16, 8);
+      if (level < 10)  xpos += 4;  // single digit
+      Disp_PosXY(xpos, 56);
+      Disp_PutDecimal(level, 1);  // 0..16
+      // Initialize bar graph
+      UpdateBarGraphLevel(osc, g_Patch.MixerInputStep[osc]);  
+    }
+    // Draw division lines and labels at levels: 0, 4, 8, 12 & 16
+    Disp_SetFont(PROP_8_NORM);
+    Disp_Mode(SET_PIXELS);
+    for (idx = 0;  idx < 5;  idx++)
+    {
+      level = idx * 4;
+      ypos = 52 - idx * 8;  // 8 pix per division
+      Disp_PosXY(12, ypos - 1);
+      if (level < 10)  Disp_PosXY(16, ypos - 1);  // single digit
+      Disp_PutDecimal(level, 1);
+      Disp_PosXY(24, ypos);
+      if (idx == 0 || idx == 4) Disp_DrawBar(96, 1);  // Draw solid line
+      else  DrawDottedLineHoriz(96);  // Draw dotted line
+    }
+    doRefresh = TRUE;
+  }  // end if (isNewScreen)
+
+  if (ButtonHit('A'))  GoToNextScreen(SETUP_MENU);
+  if (ButtonHit('B'))  // Next OSC.
+  { 
+    // Restore currently selected OSC number display (normally inverse video)
+    if (cycleState != 0)  // image not inverted...
+    {
+      xpos = 26 + oscSelected * 16;
+      Disp_Mode(FLIP_PIXELS);
+      Disp_PosXY(xpos, 0);
+      Disp_DrawBar(12, 9);
+      cycleState = 0;  // reset flash cycle
+    }
+    if (++oscSelected >= 6) oscSelected = 0;  // rotate to next osc.
+  }
+
+  if (PotMoved())
+  {
+    setting = PotPosition() / 16;  // 0..15
+    g_Patch.MixerInputStep[oscSelected] = setting;
+    doRefresh = TRUE;
+  }
+
+  if (doRefresh)  // Show selected Osc. Mixer Level
+  {
+    Disp_Mode(SET_PIXELS);
+    Disp_SetFont(MONO_8_NORM);
+    level = g_Patch.MixerInputStep[oscSelected];
+    xpos = 26 + oscSelected * 16;
+    Disp_PosXY(xpos, 56);  // erase existing value
+    Disp_BlockClear(16, 8);
+    if (level < 10)  xpos += 4;  // single digit
+    Disp_PosXY(xpos, 56);
+    Disp_PutDecimal(level, 1);  // 0..16
+    UpdateBarGraphLevel(oscSelected, level);
+  }
+
+  // Flash selected Osc. mixer level at bottom of screen (2Hz flash rate)
+  if (++cycleCount >= 8)  // 400ms timer elapsed
+  {
+    cycleCount = 0;
+    cycleState = cycleState ^ 0xFF;  // flip bits
+    xpos = 26 + oscSelected * 16;
+    Disp_Mode(FLIP_PIXELS);
+    Disp_PosXY(xpos, 0);
+    Disp_DrawBar(12, 9);
   }
 }
 
@@ -1773,5 +1899,51 @@ void  UserState_Calibrate_CV1()
     Disp_SetFont(PROP_8_NORM);
     Disp_PosXY(Disp_GetX(), 39);
     Disp_PutText(" mV");
+  }
+}
+
+
+// Function renders a dotted line horizontally at the current cursor position (x, y).
+// If length is not a multiple of 8 pix, the length will be truncated to nearest 8 pix.
+//
+void  DrawDottedLineHoriz(uint8_t length)
+{
+  static uint8_t  dots8pix = 0xAA;  // dotted line, w=8, h=1
+  uint8_t  xpos = Disp_GetX();
+  uint8_t  ypos = Disp_GetY();
+  uint8_t  savePosX = xpos;
+
+  while (length >= 8)
+  {
+    Disp_PosXY(xpos, ypos);
+    Disp_PutImage((uint8_t *)&dots8pix, 8, 1);
+    xpos += 8;
+    length -= 8;
+  }
+  Disp_PosXY(savePosX, ypos);  // restore caller's cursor position
+}
+
+
+void  UpdateBarGraphLevel(uint8_t osc, uint8_t level)
+{
+  static uint8_t  dots8pix = 0xAA;  // dotted line, w=8, h=1
+  static uint8_t  line8pix = 0xFF;  // solid line, w=8, h=1
+  uint8_t  xpos = 28 + osc * 16;
+  uint8_t  ypos = 22;  // height at level 15 (max.)
+  uint8_t  step = 15;
+
+  while (step--)  // erase existing bar (15 steps)
+  {
+    Disp_PosXY(xpos, ypos);
+    Disp_BlockClear(8, 1);  // erase 1 step
+    ypos += 2;  // go down 2 pixels
+    if ((step % 4) == 3) Disp_PutImage((uint8_t *)&dots8pix, 8, 1);
+  }
+  ypos = 52;  // height at level 0
+  while (level--)  // skip if level == 0
+  {
+    ypos -= 2;  // go up 2 pixels
+    Disp_PosXY(xpos, ypos);
+    Disp_PutImage((uint8_t *)&line8pix, 8, 1);
   }
 }

@@ -3,7 +3,7 @@
  *
  * Project:    Sigma-6 "ItsyBitsy M0" Synth / Mono Voice Module
  *
- * Platform:   Adafruit 'ItsyBitsy M0 Express' or Robotdyn 'SAMD21 M0 Mini' (MCU: ATSAMD21G18)
+ * Platform:   Adafruit 'ItsyBitsy M0 Express' or Robotdyn 'SAMD21 M0 Mini' board
  *
  * Author:     M.J.Bauer, 2025++  [Ref:  www.mjbauer.biz]
  *
@@ -16,7 +16,7 @@
 #include <Wire.h>
 #include "m0_synth_def.h"
 
-#define FIRMWARE_VERSION  "2.8"
+#define FIRMWARE_VERSION  "3.0"
 
 #define EEPROM_WRITE_INHIBIT()   {}    // Not used... WP tied to GND
 #define EEPROM_WRITE_ENABLE()    {}
@@ -27,7 +27,7 @@ void  TC3_Handler(void);       // Audio ISR - defined in "m0_synth_engine"
 
 ConfigParams_t  g_Config;      // structure holding config param's
 
-uint8_t  g_MidiChannel;        // 1..16  (16 = broadcast, omni)
+uint8_t  g_MidiChannel;        // 1..16  (16 = broadcast)
 uint8_t  g_MidiMode;           // OMNI_ON_MONO or OMNI_OFF_MONO
 uint8_t  g_MidiRegisParam;     // Registered Param # (0: PB range, 1: Fine Tuning)
 uint8_t  g_GateState;          // GATE signal state (software)
@@ -185,7 +185,7 @@ void  PresetSelect(uint8_t preset)
  *
  * The synth module responds to valid messages addressed to the configured MIDI IN channel and,
  * if MIDI mode is set to 'Omni On' (channel-select switches set to 0), it will respond to all
- * messages received, regardless of which channel(s) the messages are addressed to.
+ * messages received regardless of which channel(s) the messages are addressed to.
  * The module also responds to valid messages addressed to channel 16, regardless of the channel
  * switch setting, so that the host controller can transmit a "broadcast" message to all modules
  * on the MIDI network simultaneously.
@@ -200,65 +200,52 @@ void  MidiInputService()
   static  short  msgBytesExpected;
   static  short  msgByteCount;
   static  short  msgIndex;
-  static  uint8_t  msgStatus;     // last command/status byte rx'd
-  static  bool   msgComplete;   // flag: got msg status & data set
+  static  uint8_t  msgStatus;  // last command/status byte rx'd
+  static  uint8_t  msgChannel;  // 1..16 ! (0 = invalid)
+  static  bool   runningStatus;  // flag: got msg status & data set
 
-  uint8_t   msgByte;
-  uint8_t   msgChannel;  // 1..16 !
-  BOOL    gotSysExMsg = FALSE;
+  uint8_t  msgByte;
+  
+  BOOL     gotSysExMsg = FALSE;
 
   if (Serial1.available() > 0)  // unread byte(s) available in Rx buffer
   {
     msgByte = Serial1.read();
 
-    if (msgByte & 0x80)  // command/status byte received (bit7 High)
+    if ((msgByte & 0x80) && msgByte < 0xF0)  // command/status byte
     {
-      if (msgByte == SYSTEM_MSG_EOX)
-      {
-        msgComplete = TRUE;
-        gotSysExMsg = TRUE;
-        midiMessage[msgIndex++] = SYSTEM_MSG_EOX;
-        msgByteCount++;
-      }
-      else if (msgByte <= SYS_EXCLUSIVE_MSG)  // Ignore Real-Time messages
-      {
         msgStatus = msgByte;
-        msgComplete = FALSE;  // expecting data byte(s))
+        msgChannel = (midiMessage[0] & 0x0F) + 1;  // 1..16
+        runningStatus = FALSE;  // expecting data byte(s)
+    }
+
+    if (msgChannel == g_MidiChannel || msgChannel == 16 || g_MidiMode == OMNI_ON_MONO)
+    {
+      if ((msgByte & 0x80) && msgByte < 0xF0)  // command/status byte
+      {
         midiMessage[0] = msgStatus;
         msgIndex = 1;
         msgByteCount = 1;  // have cmd already
         msgBytesExpected = MIDI_GetMessageLength(msgStatus);
       }
-    }
-    else  // data byte received (bit7 LOW)
-    {
-      if (msgComplete && msgStatus != SYS_EXCLUSIVE_MSG)
+      else if ((msgByte & 0x80) == 0)  // data byte (bit7 = 0)
       {
-        if (msgByteCount == 0)  // start of new data set -- running status
+        if (runningStatus && msgByteCount == 0)  // start new data set
         {
           msgIndex = 1;
-          msgByteCount = 1;
+          msgByteCount = 1;  // have status byte already
           msgBytesExpected = MIDI_GetMessageLength(msgStatus);
         }
+        if (msgIndex < MIDI_MSG_MAX_LENGTH)
+        {
+          midiMessage[msgIndex++] = msgByte;
+          msgByteCount++;
+        }
       }
-      if (msgIndex < MIDI_MSG_MAX_LENGTH)
+      if (msgByteCount != 0 && msgByteCount == msgBytesExpected)
       {
-        midiMessage[msgIndex++] = msgByte;
-        msgByteCount++;
-      }
-    }
-
-    if ((msgByteCount != 0 && msgByteCount == msgBytesExpected) || gotSysExMsg)
-    {
-      msgComplete = TRUE;
-      msgChannel = (midiMessage[0] & 0x0F) + 1;  // 1..16
-
-      if (msgChannel == g_MidiChannel || msgChannel == 16
-      ||  g_MidiMode == OMNI_ON_MONO  || msgStatus == SYS_EXCLUSIVE_MSG)
-      {
+        runningStatus = TRUE;  // have complete message
         ProcessMidiMessage(midiMessage, msgByteCount);
-        g_MidiRxSignal = TRUE;  // signal to GUI to flash MIDI Rx icon
-        msgBytesExpected = 0;
         msgByteCount = 0;
         msgIndex = 0;
       }
@@ -319,11 +306,6 @@ void  ProcessMidiMessage(uint8_t *midiMessage, short msgLength)
     {
       bipolarPosn = ((short)(leverPosn_Hi << 7) | leverPosn_Lo) - 0x2000;
       SynthPitchBend(bipolarPosn);
-      break;
-    }
-    case SYS_EXCLUSIVE_MSG:
-    {
-      ProcessMidiSystemExclusive(midiMessage, msgLength);
       break;
     }
     default:  break;
@@ -528,21 +510,6 @@ void  ProcessControlChange(uint8_t *midiMessage)
 }
 
 
-/*
- * The "manufacturer ID" (2nd byte of msg) is first validated to ensure the message
- * can be correctly interpreted, i.e. it's a Bauer exclusive message which contains
- * information about a Bauer MIDI controller (e.g. REMI) connected to the MIDI IN port.
- * Byte 3 of the message is a code to identify the type of message content.
- */
-void  ProcessMidiSystemExclusive(uint8_t *midiMessage, short msgLength)
-{
-  if (midiMessage[1] == SYS_EXCL_REMI_ID)  // "Manufacturer ID" match
-  {
-      // Nothing to be done in this version !
-  }
-}
-
-
 int  MIDI_GetMessageLength(uint8_t statusByte)
 {
   uint8_t  command = statusByte & 0xF0;
@@ -601,6 +568,7 @@ void  CVinputService()
       gateLeadingEdge = millis();
       g_GateState = HIGH;
       digitalWrite(TESTPOINT2, HIGH);  // "Gate" LED on
+      analogRead(A1);  // Dummy read -- improves ADC accuracy (?)
       if (g_Config.CV_ModeAutoSwitch)
       {
         g_CVcontrolMode = TRUE;
@@ -612,8 +580,15 @@ void  CVinputService()
   if (attackPending && (millis() - gateLeadingEdge) >= 5)  // Gate delayed 5ms
   {
     SynthTriggerAttack();
-      resetCV1Filter = true;  // prevent CV1 input filter delay
+    resetCV1Filter = TRUE;  // prevent CV1 input filter delay
     attackPending = FALSE;  // prevent repeat attacks
+    if (g_Config.Pitch_CV_Quantize && g_Config.MultiTriggerEnab)  // Set CV1 once only
+    {
+      inputSignal_mV = ((int) analogRead(A1) * g_Config.CV1_FullScale_mV) / 4095;
+      freqLUTindex = (60 * (inputSignal_mV + 41)) / 5000;  // 0..60 (spans 5 octaves)
+      freqLUTindex += (g_Config.Pitch_CV_BaseNote - 12);  // offset by MIDI base-note
+      SynthSetOscFrequency(g_NoteFrequency[freqLUTindex]);
+    }
   }
 
   if (g_GateState == HIGH && gateInput == LOW)  // GATE trailing edge
@@ -634,7 +609,7 @@ void  CVinputService()
     analogRead(A1);  // discard 1st reading after mux input change ???
     inputSignal_mV = ((int) analogRead(A1) * g_Config.CV1_FullScale_mV) / 4095;
     inputSignal_mV = inputSignal_mV << 16;  // convert to fixed-point value
-      if (resetCV1Filter) g_CV1readingFilt = inputSignal_mV;
+    if (resetCV1Filter) g_CV1readingFilt = inputSignal_mV;
     else  // Apply 1st-order IIR filter with K = 1/8
     {
       g_CV1readingFilt -= g_CV1readingFilt >> 3;  // Subtract g_CV1readingFilt * K
@@ -643,13 +618,13 @@ void  CVinputService()
     inputSignal_mV = g_CV1readingFilt >> 16;  // integer part
     resetCV1Filter = false;
     //
-    if (g_Config.Pitch_CV_Quantize)  // Pitch quantized to nearest semitone
+    if (g_Config.Pitch_CV_Quantize && !g_Config.MultiTriggerEnab)  // Legato enabled
     {
       freqLUTindex = (60 * (inputSignal_mV + 41)) / 5000;  // 0..60 (spans 5 octaves)
       freqLUTindex += (g_Config.Pitch_CV_BaseNote - 12);  // offset by MIDI base-note
       SynthSetOscFrequency(g_NoteFrequency[freqLUTindex]);
     }
-    else  // Pitch not quantized -- Apply linear LUT interpolation
+    if (!g_Config.Pitch_CV_Quantize)  // Apply linear LUT interpolation
     {
       noteNumber = (60 * inputSignal_mV) / 5000;  // 0..60 (spans 5 octaves)
       freqLUTindex = noteNumber + (g_Config.Pitch_CV_BaseNote - 12);
@@ -708,21 +683,25 @@ void  CVinputService()
  *
  *   Options for AudioAmpldCtrlMode, VibratoCtrlMode, PitchBendMode, etc,
  *   are defined in the header file: "m0_synth_def.h".
+ *   Example:  AudioAmpldCtrlMode = AUDIO_CTRL_ENV1_VELO or AUDIO_CTRL_EXPRESS (for EWI)
  */
 void  DefaultConfigData(void)
 {
   g_Config.MidiChannel = 1;
-  g_Config.AudioAmpldCtrlMode = AUDIO_CTRL_ENV1_VELO;
+  if (BUILD_FOR_EWI_CONTROLLER) g_Config.AudioAmpldCtrlMode = AUDIO_CTRL_EXPRESS;
+  else  g_Config.AudioAmpldCtrlMode = AUDIO_CTRL_ENV1_VELO;  // normal build
   g_Config.VibratoCtrlMode = VIBRATO_AUTOMATIC;
   g_Config.PitchBendMode = PITCH_BEND_DISABLED;
   g_Config.PitchBendRange = 2;            // semitones (max. 12)
   g_Config.ReverbMix_pc = 15;             // 0..100 % (typ. 15)
-  g_Config.PresetLastSelected = 1;        // user preference
+  if (BUILD_FOR_EWI_CONTROLLER) g_Config.PresetLastSelected = 30;
+  else  g_Config.PresetLastSelected = 1;  // Your choice
   g_Config.Pitch_CV_BaseNote = 36;        // MIDI note # (12..59)
   g_Config.Pitch_CV_Quantize = FALSE;
   g_Config.CV_ModeAutoSwitch = TRUE;
   g_Config.CV3_is_Velocity = FALSE;
-  g_Config.MultiTriggerEnab = FALSE;      // Legato mode enabled
+  if (BUILD_FOR_EWI_CONTROLLER) g_Config.MultiTriggerEnab = FALSE;
+  else g_Config.MultiTriggerEnab = TRUE;  // suit keyboard or sequencer
   g_Config.CV1_FullScale_mV = 5100;       // 5100 => uncalibrated
   g_Config.FineTuning_cents = 0;          // signed value (+/-100)
   g_Config.EEpromCheckWord = 0xABCDEF27;  // last entry
