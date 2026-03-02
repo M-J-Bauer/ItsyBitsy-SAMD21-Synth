@@ -232,13 +232,23 @@ Modified preset #19 "Bellbird" -- now "Bellbird Recall".
 Added 32 more presets... banks 3 & 4... for further experimentation.
 See project web page for explanation of nomenclature.
 
+v2.9  26-FEB-2026
+`````````````````
+Revised MIDI input service routine. No functional change. Tested OK.
+
+Modified CV mode operation as follows:
+If the CV option "Quantize Pitch" is enabled AND the Keying Mode is set to
+"Multi-trigger", the CV1 input signal will be sampled once only, 5ms after the
+GATE signal leading edge. The oscillator pitch will remain constant until the
+next GATE leading edge, except that vibrato (LFO FM) will function as usual.
 
 
---------------------------------------------------------------------------------
-
-To Do:  
-```````
-Refine presets 32 ~ 64 before release as v3.0.
+v3.0  02-MAR-2026
+`````````````````
+Added UI screen function to set Oscillator Mix levels.
+Hit button A to exit the 'Mixer Levels' screen.
+Hit button B to advance to the next oscillator for setting.
+Use the data entry pot to adjust the level of the selected oscillator.
 
 
 
